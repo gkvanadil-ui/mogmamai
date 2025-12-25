@@ -118,38 +118,40 @@ with tabs[0]:
                     st.session_state.texts[p_key] = process_mog_ai({"name": p_key, "desc": refine_prompt})
                     st.rerun()
 
-# --- Tab 2: 사진보정 (AI 완전 자율 지능형 보정) ---
+# --- Tab 2: 사진보정 (섬세한 AI 자율 지능형 보정) ---
 with tabs[1]:
-    st.subheader("📸 AI 자율 지능형 작업실")
-    st.write("AI가 사진의 상태를 직접 진단하여 가장 예쁜 결과물을 만들어 드려요.")
+    st.subheader("📸 AI 섬세한 사진 작업실")
+    st.write("AI가 사진의 밝기, 색감, 질감을 아주 섬세하게 분석하여 원본보다 조금 더 화사하고 깔끔하게만 다듬어 드려요.")
     
     uploaded_files = st.file_uploader("작업할 사진 선택", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
     
     if uploaded_files and api_key:
         c1, c2 = st.columns(2)
         
-        # --- 기능 1: AI 자율 보정 (수치 범위 제한 없음) ---
-        if c1.button("✨ AI 자율 보정 시작"):
+        # --- 기능 1: AI 섬세 자율 보정 ---
+        if c1.button("✨ AI 섬세 보정 시작"):
             client = openai.OpenAI(api_key=api_key)
             def encode_image(image_bytes): return base64.b64encode(image_bytes).decode('utf-8')
             
             for idx, file in enumerate(uploaded_files):
                 img_bytes = file.getvalue()
-                with st.spinner(f"{idx+1}번 사진을 AI가 진단 중입니다..."):
+                with st.spinner(f"{idx+1}번 사진을 조심스럽게 분석 중..."):
                     try:
-                        # AI에게 자율권을 완전히 부여하는 프롬프트
+                        # AI에게 과한 보정을 금지하고 자연스러움을 강조하는 프롬프트
                         response = client.chat.completions.create(
                             model="gpt-4o",
                             messages=[{"role": "user", "content": [
-                                {"type": "text", "text": """당신은 전문 사진 보정가입니다. 
-                                이 사진을 분석하여 상품 판매용으로 가장 완벽한 상태가 되도록 다음 수치를 결정하세요.
-                                
-                                1. 밝기(brightness): 어두우면 높이고, 밝으면 낮추세요.
-                                2. 대비(contrast): 상품의 질감을 살리세요.
-                                3. 채도(saturation): 색감을 생기 있게 만드세요.
-                                4. 선명도(sharpness): 뜨개나 원단의 디테일을 살리세요.
-                                
-                                모든 수치는 1.0(원본)을 기준으로 당신이 자율적으로 판단하여 0.5에서 2.0 사이에서 결정하세요.
+                                {"type": "text", "text": """당신은 핸드메이드 작품 전문 사진가입니다. 
+                                다음 가이드를 바탕으로 이 사진의 최적 보정 수치를 결정하세요. 
+                                이미지가 하얗게 날아가거나(Overexposed) 인위적으로 보이지 않게 하는 것이 가장 중요합니다.
+
+                                [보정 철학]
+                                1. 자연스러움: 원본의 분위기를 최대한 유지하세요.
+                                2. 밝기(brightness): 사진이 어두울 때만 '아주 미세하게' 높이세요 (최대 1.15). 충분히 밝다면 1.0을 유지하세요.
+                                3. 대비(contrast): 상품이 흐릿할 때만 아주 살짝 높이세요 (최대 1.1).
+                                4. 채도(saturation): 색감을 생기 있게 만들되 과하지 않게 (0.95~1.1).
+                                5. 선명도(sharpness): 질감이 보일 정도로만 살짝 높이세요 (최대 1.3).
+
                                 오직 JSON 형식으로만 답하세요: 
                                 {"brightness": n, "contrast": n, "saturation": n, "sharpness": n}"""},
                                 {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encode_image(img_bytes)}"}}
@@ -159,27 +161,25 @@ with tabs[1]:
                         
                         res = json.loads(response.choices[0].message.content)
                         
-                        # 이미지 처리
                         img = Image.open(io.BytesIO(img_bytes))
                         img = ImageOps.exif_transpose(img)
                         if img.mode == 'RGBA': img = img.convert('RGB')
                         
-                        # AI의 판단 결과를 그대로 적용
+                        # AI의 판단 결과를 적용 (기본값 1.0으로 안전장치)
                         img = ImageEnhance.Brightness(img).enhance(res.get('brightness', 1.0))
                         img = ImageEnhance.Contrast(img).enhance(res.get('contrast', 1.0))
                         img = ImageEnhance.Color(img).enhance(res.get('saturation', 1.0))
                         img = ImageEnhance.Sharpness(img).enhance(res.get('sharpness', 1.0))
                         
-                        st.image(img, caption=f"✨ AI 진단 보정 완료 ({idx+1}번)")
+                        st.image(img, caption=f"✅ {idx+1}번 자연스러운 보정 완료")
                         
-                        # 개별 저장 버튼
                         buf = io.BytesIO()
                         img.save(buf, format="JPEG", quality=95)
-                        st.download_button(f"📥 {idx+1}번 보정본 저장", buf.getvalue(), f"mog_fixed_{idx+1}.jpg", key=f"dl_{idx}")
+                        st.download_button(f"📥 {idx+1}번 사진 저장", buf.getvalue(), f"mog_natural_{idx+1}.jpg", key=f"dl_{idx}")
                     
-                    except Exception as e:
-                        st.error(f"{idx+1}번 보정 중 오류 발생: AI가 사진을 읽지 못했습니다🌸")
-
+                    except:
+                        st.error(f"{idx+1}번 보정 실패🌸")
+                        
         # --- 기능 2: 얼굴 모자이크 (자율 감지) ---
         if c2.button("👤 얼굴 모자이크 시작"):
             client = openai.OpenAI(api_key=api_key)
