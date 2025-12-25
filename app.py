@@ -338,75 +338,87 @@ with tabs[2]:
 
     st.divider()
 
-    # --- 에픽(EPIK) 섹션 ---
-    st.markdown("### 2️⃣ 음악이 흐르는 영상 만들기! '에픽(EPIK)'")
-    st.write("작품 사진 여러 장으로 **음악이 나오는 멋진 홍보 영상**을 1분 만에 만들 수 있어요.")
+   # --- 2️⃣ 에픽(EPIK) 사진 보정 섹션 (영상에서 사진 보정으로 변경) ---
+    st.markdown("### 2️⃣ 사진을 화사하게! '에픽(EPIK)' 보정법")
+    st.write("스마트폰 앱 **'에픽'**을 이용해 작품 사진의 색감을 예쁘게 살리는 방법이에요.")
     
-    with st.expander("📺 천천히 따라해보세요 (에픽 사용법)", expanded=True):
+    with st.expander("📸 엄마를 위한 에픽 보정 순서 (따라해보세요)", expanded=True):
         st.markdown("""
-        **1. 앱 실행 및 [템플릿] 누르기**
-        * 스마트폰에서 **[EPIK]** 앱을 열고 하단 메뉴에서 **[템플릿]**을 누르세요.
+        **1. 사진 불러오기**
+        * 에픽 앱 실행 후 **[편집]** 버튼을 누르고 보정할 사진을 선택하세요.
         
-        **2. 어울리는 분위기 검색**
-        * 상단 검색창에 **'감성'**, **'봄'**, **'뜨개'** 또는 **'Handmade'**라고 검색해 보세요.
+        **2. [도구] - [선명하게] (강력 추천!✨)**
+        * 메뉴에서 **[선명하게]**를 한 번만 누르면 AI가 흐릿한 사진을 순식간에 또렷하게 만들어줘요.
         
-        **3. 사진 선택하기**
-        * 맘에 드는 영상틀을 골라 **[사용하기]**를 누른 뒤, 아까 보정했던 예쁜 사진들을 순서대로 선택해 주세요.
+        **3. [조정] - 화사함 더하기**
+        * 하단 **[조정]** 메뉴에서 다음 세 가지만 살짝 조절해 보세요.
+            * **밝기**: 사진이 어둡다면 오른쪽으로 살짝!
+            * **채도**: 작품 색깔을 생생하게 하고 싶을 때 높여주세요.
+            * **색온도**: 따뜻한 느낌을 주려면 오른쪽(노란빛), 깨끗한 느낌은 왼쪽(파란빛)으로!
         
-        **4. 음악과 함께 저장**
-        * 오른쪽 위 **[저장]** 버튼을 누르면 끝! 갤러리에 음악이 나오는 멋진 영상이 생깁니다. 🌸
+        **4. [부분 수정] - 지저분한 곳 지우기**
+        * 배경에 먼지가 있거나 지저분한 게 찍혔다면 **[도구] - [부분 수정]**으로 슥 문지르면 감쪽같이 사라져요.
+        
+        **5. 저장하기**
+        * 오른쪽 위 **[저장]** 버튼을 누르면 갤러리에 예쁜 사진이 저장됩니다. 🌸
         """)
-        st.info("💡 이렇게 만든 영상은 인스타그램 '릴스'나 아이디어스 '작가소식'에 올리면 효과가 아주 좋아요!")
+        st.success("💡 팁: '필터' 메뉴에서 '감성' 카테고리를 고르면 터치 한 번으로 분위기가 확 살아나요!")
 
     st.divider()
-    st.write("<p style='text-align: center; color: #7d6e63;'>오늘도 작가님의 따뜻한 손길을 응원합니다. 화이팅! 🕯️</p>", unsafe_allow_html=True)
+    st.write("<p style='text-align: center; color: #7d6e63;'>오늘도 작가님의 소중한 작품이 빛나길 응원합니다. 화이팅! 🕯️</p>", unsafe_allow_html=True)
 
-# --- Tab 4: 무엇이든 물어보세요 (신설) ---
+# --- Tab 4: 무엇이든 물어보세요 (채팅방 형식) ---
 with tabs[3]:
     st.subheader("💬 모그 작가님 고민 상담소")
-    st.write("작품 활동을 하시며 궁금한 점이나 고민이 있다면 무엇이든 물어보세요. 다정하게 대답해 드릴게요. 🌸")
-    
-    # 질문 입력창
-    user_question = st.text_area("✍️ 궁금한 내용을 적어주세요", 
-                                placeholder="예: 뜨개 파우치에 어울리는 예쁜 이름을 추천해줘.\n손님이 배송이 늦어진다고 문의했는데 어떻게 답장하면 좋을까?",
-                                height=150)
-    
-    if st.button("🕯️ AI 작가에게 물어보기"):
-        if not user_question:
-            st.warning("질문을 먼저 입력해 주셔요🌸")
-        elif not api_key:
-            st.error("API 키가 설정되지 않았어요.")
-        else:
-            with st.spinner("작가님의 고민을 함께 나누는 중입니다..."):
+    st.write("작품 활동 중 생기는 고민이나 궁금증을 편하게 말씀해 주세요. 다정한 동료 작가가 되어 드릴게요. 🌸")
+
+    # 1. 대화 내역을 저장할 공간(금고) 만들기
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = []
+
+    # 2. 이전 대화 내역 화면에 보여주기
+    # 이 부분 덕분에 대화가 누적되어 보입니다.
+    for message in st.session_state.chat_history:
+        with st.chat_message(message["role"]):
+            st.write(message["content"])
+
+    # 3. 사용자 질문 입력창 (화면 하단에 생깁니다)
+    if prompt := st.chat_input("작가님의 고민을 들려주세요..."):
+        
+        # 엄마가 보낸 메시지 화면에 표시 및 저장
+        with st.chat_message("user"):
+            st.write(prompt)
+        st.session_state.chat_history.append({"role": "user", "content": prompt})
+
+        # AI의 다정한 답변 생성
+        with st.chat_message("assistant"):
+            with st.spinner("작가님의 마음을 헤아리는 중입니다..."):
                 try:
                     client = openai.OpenAI(api_key=api_key)
                     
-                    # 상담소 전용 다정한 프롬프트
-                    advice_prompt = f"""
-                    당신은 핸드메이드 작가들의 다정한 선배이자 동료인 '모그 AI'입니다. 
-                    50대 여성 작가님의 고민에 대해 다음 규칙을 지켜 답변하세요.
-                    
-                    1. 말투: 매우 다정하고 따뜻하게 (~이지요^^, ~해요, ~보내드려요)
-                    2. 내용: 구체적이고 실질적인 도움을 줄 것
-                    3. 금지: 별표(*)나 볼드체(**) 같은 특수 기호는 절대 사용하지 말 것
-                    4. 응원: 마지막에는 항상 작가님의 활동을 응원하는 따뜻한 말을 덧붙일 것
-                    
-                    질문 내용: {user_question}
-                    """
+                    # 상담소 전용 어투 지침 (이전 대화 맥락 포함)
+                    full_messages = [
+                        {"role": "system", "content": "당신은 핸드메이드 브랜드 '모그' 작가님의 다정한 동료 AI입니다. 50대 여성 작가님께 존댓말로 다정하게 (~이지요^^, ~해요) 답하세요. 특수기호 *나 **는 절대 쓰지 마세요."}
+                    ]
+                    # 이전 대화 5개 정도만 기억하게 해서 답변 성능 유지
+                    for m in st.session_state.chat_history[-5:]:
+                        full_messages.append(m)
                     
                     response = client.chat.completions.create(
                         model="gpt-4o",
-                        messages=[{"role": "user", "content": advice_prompt}]
+                        messages=full_messages
                     )
                     
                     answer = response.choices[0].message.content.replace("**", "").replace("*", "").strip()
                     
-                    st.write("---")
-                    st.write("### 🕯️ 모그 AI의 다정한 답변")
-                    st.info(answer)
+                    # 답변 표시 및 저장
+                    st.write(answer)
+                    st.session_state.chat_history.append({"role": "assistant", "content": answer})
                     
                 except:
-                    st.error("답변을 가져오는 중에 작은 오류가 생겼어요. 잠시 후 다시 물어봐 주세요🌸")
+                    st.error("잠시 오류가 생겼어요. 다시 한번 말씀해 주시겠어요?🌸")
 
-    st.divider()
-    st.caption("💡 팁: '작품 이름 추천', '인스타그램 댓글 답장', '계절 인사말' 등을 물어보시면 아주 좋아요.")
+    # 4. 대화 초기화 버튼 (필요할 때 새로 시작)
+    if st.button("♻️ 대화 내용 지우기"):
+        st.session_state.chat_history = []
+        st.rerun()
