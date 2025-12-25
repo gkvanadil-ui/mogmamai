@@ -16,7 +16,7 @@ if not api_key:
     st.sidebar.header("⚙️ AI 설정")
     api_key = st.sidebar.text_input("OpenAI API Key를 넣어주세요", type="password")
 else:
-    st.sidebar.success("✅ 작가님, 모그 AI 비서가 준비되었습니다.")
+    st.sidebar.success("✅ 작가님, 모그 AI 비서가 연결되었습니다.")
 
 st.title("🕯️ 작가 '모그(Mog)' 전용 AI 통합 비서")
 st.write("'세상에 단 하나뿐인 온기'를 전하는 작가님의 진심을 기록합니다.")
@@ -24,7 +24,7 @@ st.write("'세상에 단 하나뿐인 온기'를 전하는 작가님의 진심�
 st.divider()
 
 # --- [공통 입력 구역] ---
-with st.expander("📦 작품 정보 입력 (글쓰기와 상세페이지에 사용됩니다)", expanded=True):
+with st.expander("📦 작업할 작품 정보 입력", expanded=True):
     col_in1, col_in2 = st.columns(2)
     with col_in1:
         name = st.text_input("📦 작품 이름", placeholder="예: 파스텔 플라워 모티브 숄더백")
@@ -32,13 +32,15 @@ with st.expander("📦 작품 정보 입력 (글쓰기와 상세페이지에 사
         mat = st.text_input("🧵 원단/소재", placeholder="예: 코튼, 폴리 혼방 등")
     with col_in2:
         size = st.text_input("📏 사이즈/수납", placeholder="예: 가로 33, 세로 25, 바닥폭 9cm")
+        # --- 제작 기간 입력 칸 추가 ---
+        period = st.text_input("⏳ 제작 기간", placeholder="예: 주문 후 제작, 평일 기준 3~5일 소요")
         process = st.text_area("🛠️ 제작 포인트", placeholder="예: 하나하나 직접 떠서 연결, 인조 가죽 스트랩으로 튼튼함")
         care = st.text_input("💡 관리 방법/포장", placeholder="예: 세탁기 불가, 오염 시 부분 손세탁")
 
 # --- 메인 탭 구성 ---
 tabs = st.tabs(["✍️ 글쓰기 센터", "🎨 이미지 & 상세페이지", "📱 영상 제작 팁"])
 
-# --- [Tab 1: 글쓰기 센터] (매체별 샘플 100% 반영) ---
+# --- [Tab 1: 글쓰기 센터] ---
 with tabs[0]:
     st.header("✍️ 매체별 맞춤형 상세 글 생성")
     tab1, tab2, tab3 = st.tabs(["📸 인스타그램", "🎨 아이디어스", "🛍️ 스마트스토어"])
@@ -56,18 +58,22 @@ with tabs[0]:
 
         [공통 어투]
         - 말투: 다정하고 조근조근한 어른의 말투 (~이지요^^, ~해요, ~좋아요).
-        - 기호: 강조용 별표(**)는 절대 사용 금지. 이모지(🌻, 🌸, 🌷, 👜) 적극 활용.
+        - 기호: 강조용 별표(**)는 절대 사용 금지. 이모지(🌻, 🌸, 🌷, ⏳) 적극 활용.
         
+        [제작 기간 안내 지침]
+        - 글 하단 혹은 배송 안내 섹션에 "{period}" 내용을 바탕으로 작가님의 다정한 목소리를 담아 안내하세요.
+        - 예: "정성껏 하나하나 지어드리는 아이라 {period} 정도의 시간이 필요하답니다. 너른 마음으로 기다려주셔요^^"
+
         [플랫폼별 형식 지침]
         1. 인스타그램: 해시태그 먼저, 날씨/계절 인사를 포함한 감성 일기 스타일.
         2. 아이디어스: 짧은 문장 + 줄바꿈 매우 자주 + 꽃 이모지 풍성하게.
         3. 스마트스토어: 
            - 상단에 꽃다발(💐) 이모지와 제품명 배치.
            - 구분선(⸻)을 사용하여 섹션을 나눔.
-           - '🌸 디자인 & 특징', '👜 기능성 & 내구성', '📏 사이즈', '📦 소재', '🧼 관리 방법', '📍 이런 분께 추천' 카테고리 필수 포함.
-           - 불렛 포인트(•)를 사용하여 가독성 있게 정리.
+           - '🌸 디자인 & 특징', '👜 기능성 & 내구성', '📏 사이즈', '📦 소재', '🧼 관리 방법', '📍 이런 분께 추천' 카테고리 포함.
+           - 마지막에 '⏳ 제작 및 배송 안내' 섹션을 추가하여 제작 기간을 명시하세요.
 
-        [제품 정보] 명칭:{name} / 특징:{keys} / 소재:{mat} / 사이즈:{size} / 제작진심:{process} / 관리:{care}
+        [제품 정보] 명칭:{name} / 특징:{keys} / 소재:{mat} / 사이즈:{size} / 제작진심:{process} / 관리:{care} / 제작기간:{period}
 
         {specific_prompt}
         """
@@ -83,19 +89,19 @@ with tabs[0]:
 
     with tab1:
         if st.button("🪄 인스타용 글 만들기"):
-            instr = "인스타그램 게시물입니다. 해시태그와 함께 원단의 촉감, 계절의 온기를 느낄 수 있는 감성 일기 형식으로 작성하세요."
+            instr = "인스타그램 게시물입니다. 원단의 촉감과 함께 주문 후 정성껏 제작한다는 점을 감성적으로 적어주세요."
             result = generate_text("인스타그램", instr)
             if result: st.text_area("인스타 결과", value=result, height=450)
 
     with tab2:
         if st.button("🪄 아이디어스용 글 만들기"):
-            instr = "아이디어스 판매글입니다. 한 줄에 한 문장만 나오도록 줄바꿈을 아주 많이 하고, 꽃 이모지로 정성을 표현하세요."
+            instr = "아이디어스용입니다. 줄바꿈을 많이 하고, 제작 기간에 대한 안내를 '기다림의 설렘'처럼 예쁘게 표현해 주세요."
             result = generate_text("아이디어스", instr)
             if result: st.text_area("아이디어스 결과", value=result, height=600)
 
     with tab3:
         if st.button("🪄 스마트스토어용 글 만들기"):
-            instr = "스마트스토어용입니다. 구분선(⸻)과 카테고리를 활용해 정보를 꼼꼼하고 가독성 있게 정리하세요. 마지막엔 태그 10개 이상 달아주세요."
+            instr = "스마트스토어용입니다. '⏳ 제작 및 배송 안내' 섹션을 만들어 제작 기간 정보를 명확하게 정리해 주세요."
             result = generate_text("스마트스토어", instr)
             if result: st.text_area("스토어 결과", value=result, height=700)
 
@@ -114,7 +120,7 @@ with tabs[1]:
                 try:
                     response = client.chat.completions.create(
                         model="gpt-4o",
-                        messages=[{"role": "user", "content": [{"type": "text", "text": "화사하고 빈티지한 느낌의 보정 수치 JSON."},
+                        messages=[{"role": "user", "content": [{"type": "text", "text": "화사한 보정 수치 JSON."},
                         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encode_image(img_bytes)}"}}]}],
                         response_format={ "type": "json_object" }
                     )
@@ -131,7 +137,7 @@ with tabs[1]:
 
     with col_img2:
         st.header("🎨 캔바(Canva) 제작")
-        st.link_button("✨ 캔바 상세페이지 양식 열기", "https://www.canva.com/templates/?query=상세페이지", use_container_width=True)
+        st.link_button("✨ 캔바 양식 검색 열기", "https://www.canva.com/templates/?query=상세페이지", use_container_width=True)
         if st.button("🪄 캔바 대량 제작용 데이터 생성"):
             if not name: st.warning("정보를 먼저 입력해주셔요.")
             else:
