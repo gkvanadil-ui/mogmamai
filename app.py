@@ -13,11 +13,11 @@ st.sidebar.header("⚙️ AI 설정")
 api_key = st.sidebar.text_input("OpenAI API Key를 넣어주세요", type="password")
 
 st.title("🕯️ 엄마작가님을 위한 AI 통합 비서")
-st.write("사진은 화사하게! 글은 깔끔하고 밝게! AI가 엄마의 작업을 도와드려요.")
+st.write("엄마의 따뜻한 말투 그대로, AI가 사진과 글을 완성해 드려요.")
 
 st.divider()
 
-# --- 1. 사진 일괄 AI 보정 ---
+# --- 1. 사진 일괄 AI 지능형 보정 ---
 st.header("📸 1. 사진 한 번에 보정하기")
 uploaded_files = st.file_uploader("보정할 사진들을 선택하세요 (최대 10장)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
@@ -29,7 +29,7 @@ if uploaded_files and api_key:
         client = openai.OpenAI(api_key=api_key)
         cols = st.columns(len(uploaded_files))
         for idx, file in enumerate(uploaded_files):
-            with st.spinner(f"{idx+1}번 분석 중..."):
+            with st.spinner(f"{idx+1}번 사진 분석 중..."):
                 img_bytes = file.getvalue()
                 response = client.chat.completions.create(
                     model="gpt-4o",
@@ -50,24 +50,24 @@ if uploaded_files and api_key:
 
 st.divider()
 
-# --- 2. AI 문장 보완 상세페이지 (가독성 & 캐주얼 톤) ---
+# --- 2. 엄마 말투 학습 AI 상세페이지 작성 ---
 st.header("✍️ 2. 상세페이지 글 만들기")
-st.write("빈칸에 단어만 적어보세요. 읽기 편하고 기분 좋은 문장으로 만들어드릴게요!")
+st.write("빈칸에 단어만 적어보세요. 엄마가 평소 쓰시는 다정한 말투로 바꿔드릴게요!")
 
 with st.container():
     col1, col2 = st.columns(2)
     with col1:
         st.subheader("📋 기본 정보")
-        name = st.text_input("📦 작품 이름", placeholder="예: 린넨 앞치마")
-        keys = st.text_area("🔑 핵심 특징/키워드", placeholder="예: 가볍다, 주머니 큼, 색이 예쁨")
-        mat = st.text_input("🧵 소재/재질", placeholder="예: 워싱 린넨 100%")
+        name = st.text_input("📦 작품 이름", placeholder="예: 뜨왈 스트링 파우치")
+        keys = st.text_area("🔑 핵심 특징/쓰임새", placeholder="예: 가벼운 외출 ok, 파우치로도 좋음, 작지만 수납 잘됨")
+        mat = st.text_input("🧵 원단/소재", placeholder="예: 도톰한 린넨, 안감도 20수 린넨")
     with col2:
         st.subheader("🛠️ 상세 정보")
-        size = st.text_input("📏 크기/사이즈", placeholder="예: 프리사이즈")
-        process = st.text_area("🛠️ 제작 과정", placeholder="예: 직접 재단하고 봉제함")
-        care = st.text_input("💡 관리/세탁법", placeholder="예: 울코스 세탁기 가능")
+        size = st.text_input("📏 사이즈/색상", placeholder="예: 28*30, 블랙그림은 블랙안감")
+        process = st.text_area("🛠️ 제작 포인트", placeholder="예: 바닥을 만들어주어 소지품 넣기 좋음")
+        care = st.text_input("💡 세탁/관리", placeholder="예: 찬물 손세탁")
 
-if st.button("🪄 AI에게 글쓰기 부탁하기"):
+if st.button("🪄 엄마 말투로 글 완성하기"):
     if not api_key:
         st.warning("왼쪽 메뉴에 API 키를 입력해주세요!")
     elif not name:
@@ -75,28 +75,35 @@ if st.button("🪄 AI에게 글쓰기 부탁하기"):
     else:
         client = openai.OpenAI(api_key=api_key)
         
+        # 엄마의 말투 샘플을 프롬프트에 직접 주입
         prompt = f"""
-        당신은 핸드메이드 마켓의 센스 있는 카피라이터입니다. 
-        작가가 입력한 단어들을 바탕으로 읽기 편하고 기분 좋은 판매글을 작성하세요.
-        
-        [데이터]
-        작품명: {name} / 특징: {keys} / 소재: {mat} / 사이즈: {size} / 과정: {process} / 관리: {care}
-        
+        당신은 핸드메이드 작가님의 SNS 판매글 작성을 돕는 비서입니다. 
+        아래의 [작가님 말투 샘플]을 완벽하게 학습하여 글을 작성하세요.
+
+        [작가님 말투 샘플]
+        - 가벼운 외출도 ok👭 가방속에도 쏙하여 때로는 파우치로도 좋아요🌻
+        - 도톰한 린넨원단에 빈티지스러우면서도 아름다운 원단으로 만들었어요.
+        - 흐물거리지 않고 모양이 잡혀서 좋지요👍 튤립이나 하트 이모지를 적절히 사용함.
+        - 과한 수식어보다는 '쓰임새'와 '원단 퀄리티'를 솔직하게 강조함.
+
+        [입력 데이터]
+        제품명: {name} / 특징: {keys} / 소재: {mat} / 사이즈: {size} / 제작포인트: {process} / 관리: {care}
+
         [지시사항]
-        1. 말투: 아부하는 느낌의 과한 포장은 금지. 밝고 경쾌한 '캐주얼 톤'으로 작성. (~해요, ~입니다 등)
-        2. 가독성: 문장을 짧고 간결하게 끊어 쓰고, 불필요한 미사여구는 삭제할 것.
-        3. 보완: 엄마가 쓴 단어를 문맥에 맞게 자연스럽게 풀어서 쓸 것.
-        4. 구성: [인사말] - [작품 포인트(간결하게)] - [상세 정보 요약] - [세탁 및 관리] - [맺음말]
-        5. 맞춤법을 완벽하게 교정할 것.
+        1. 한 줄씩 읽기 편하게 줄바꿈을 자주 할 것.
+        2. 말투는 샘플처럼 다정하고 경쾌한 '엄마 작가님' 말투로 (~해요, ~이지요, ok👭 등).
+        3. 과한 포장이나 아부는 생략하고, 원단의 느낌과 실용성을 담백하게 강조할 것.
+        4. 중간중간 🌻, 🌸, 🌷, 👍, 🧡 같은 이모지를 적절히 섞어줄 것.
+        5. 구성: [첫인사 및 쓰임새] - [원단과 디자인 설명] - [사이즈 및 디테일] - [안감/색상 안내] - [끝인사]
         """
         
-        with st.spinner("AI가 깔끔하게 글을 정리 중입니다..."):
+        with st.spinner("엄마의 말투로 예쁘게 글을 다듬고 있어요..."):
             try:
                 response = client.chat.completions.create(
                     model="gpt-4o",
                     messages=[{"role": "user", "content": prompt}]
                 )
-                st.success("✨ 읽기 좋은 판매글이 완성되었습니다!")
-                st.text_area("완성 결과", value=response.choices[0].message.content, height=500)
+                st.success("✨ 엄마 맞춤형 판매글이 완성되었습니다!")
+                st.text_area("결과 (복사해서 사용하세요)", value=response.choices[0].message.content, height=550)
             except Exception as e:
                 st.error(f"오류 발생: {e}")
