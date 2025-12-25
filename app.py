@@ -180,19 +180,28 @@ with tabs[1]:
                     except:
                         st.error(f"{idx+1}번 보정 실패🌸")
                         
-        # --- 기능 2: 얼굴 모자이크 (자율 감지) ---
-        if c2.button("👤 얼굴 모자이크 시작"):
+       # --- 기능 2: 얼굴 모자이크 (정밀 감지 로직) ---
+        if c2.button("👤 정밀 얼굴 모자이크 시작"):
             client = openai.OpenAI(api_key=api_key)
             def encode_image(image_bytes): return base64.b64encode(image_bytes).decode('utf-8')
 
             for idx, file in enumerate(uploaded_files):
                 img_bytes = file.getvalue()
-                with st.spinner(f"{idx+1}번 사진에서 얼굴을 찾는 중..."):
+                with st.spinner(f"{idx+1}번 사진에서 사람 얼굴을 정밀 분석 중..."):
                     try:
+                        # 정밀 감지를 위한 강화된 프롬프트
                         response = client.chat.completions.create(
                             model="gpt-4o",
                             messages=[{"role": "user", "content": [
-                                {"type": "text", "text": '사진 속 얼굴 위치를 [ymin, xmin, ymax, xmax] (0~1000 기준)로 찾아 {"faces": [[...]]} JSON으로 답하세요.'},
+                                {"type": "text", "text": """당신은 인물 사진 보안 전문가입니다. 
+                                사진에서 '진짜 사람의 얼굴'만 찾아내어 좌표를 출력하세요. 
+
+                                [지침]
+                                1. 배경의 사물, 인형, 동물의 얼굴은 무시하고 오직 '사람의 얼굴'만 찾으세요.
+                                2. 머리카락과 턱선까지 포함하여 얼굴 전체를 덮을 수 있는 넉넉한 사각형 좌표를 계산하세요.
+                                3. 좌표는 이미지 전체 크기를 0~1000으로 가정하고 [ymin, xmin, ymax, xmax] 형태로 답하세요.
+                                
+                                결과는 반드시 이 JSON 형식으로만 답하세요: {"faces": [[ymin, xmin, ymax, xmax], ...]}"""},
                                 {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encode_image(img_bytes)}"}}
                             ]}],
                             response_format={ "type": "json_object" }
@@ -205,23 +214,30 @@ with tabs[1]:
                         
                         faces = res.get('faces', [])
                         if not faces:
-                            st.info(f"{idx+1}번 사진에는 모자이크할 얼굴이 없네요^^")
+                            st.info(f"💡 {idx+1}번 사진에는 사람의 얼굴이 보이지 않아 그대로 두었습니다^^")
                         else:
                             for face in faces:
                                 ymin, xmin, ymax, xmax = face
-                                l, t, r, b = xmin*width/1000, ymin*height/1000, xmax*width/1000, ymax*height/1000
+                                # 좌표 변환 및 약간의 여유(Margin) 추가로 더 확실하게 가림
+                                margin = 10 
+                                l = max(0, (xmin - margin) * width / 1000)
+                                t = max(0, (ymin - margin) * height / 1000)
+                                r = min(width, (xmax + margin) * width / 1000)
+                                b = min(height, (ymax + margin) * height / 1000)
+                                
                                 face_reg = img.crop((l, t, r, b))
-                                # 자율적 강도의 모자이크
-                                face_reg = face_reg.resize((15, 15), resample=Image.BILINEAR)
+                                # 모자이크 입자를 더 굵게 하여 확실하게 익명성 보장
+                                m_size = max(4, int(face_reg.size[0] / 15)) 
+                                face_reg = face_reg.resize((m_size, m_size), resample=Image.BILINEAR)
                                 face_reg = face_reg.resize((int(r-l), int(b-t)), resample=Image.NEAREST)
                                 img.paste(face_reg, (int(l), int(t)))
                             
-                            st.image(img, caption=f"👤 얼굴 보호 완료 ({idx+1}번)")
+                            st.image(img, caption=f"👤 인물 보호 완료 ({idx+1}번)")
                             buf = io.BytesIO()
                             img.save(buf, format="JPEG", quality=95)
-                            st.download_button(f"📥 {idx+1}번 모자이크 저장", buf.getvalue(), f"mog_face_{idx+1}.jpg", key=f"ms_{idx}")
-                    except:
-                        st.error(f"{idx+1}번 처리 중 오류가 발생했습니다.")
+                            st.download_button(f"📥 {idx+1}번 결과 저장", buf.getvalue(), f"mog_face_{idx+1}.jpg", key=f"ms_{idx}")
+                    except Exception as e:
+                        st.error(f"{idx+1}번 처리 중 오류가 발생했습니다. 다시 시도해 주세요🌸")
                 
 # --- Tab 3: 캔바 & 에픽 (더 자세하고 친절한 설명) ---
 with tabs[2]:
