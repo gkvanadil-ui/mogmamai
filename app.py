@@ -18,7 +18,7 @@ else:
     st.sidebar.success("✅ API 키가 자동으로 로드되었습니다.")
 
 st.title("🕯️ 작가 '모그(Mog)' 전용 AI 통합 비서")
-st.write("'세상에 단 하나뿐인 온기'를 전하는 모그 작가님의 철학을 문장에 담아드립니다.")
+st.write("'세상에 단 하나뿐인 온기'를 전하는 모그 작가님의 철학을 담아드립니다.")
 
 st.divider()
 
@@ -82,14 +82,16 @@ def generate_text(platform_type, specific_prompt):
         return None
 
     client = openai.OpenAI(api_key=api_key)
+    # [지침 강화] 별표(**) 사용 절대 금지 명령 추가
     full_prompt = f"""
     당신은 브랜드 '모그(Mog)'의 전담 카피라이터입니다. 
-    작가 '모그'님의 철학이 드러나도록 [{platform_type}] 전용 판매글을 작성하세요.
+    작가 '모그'님의 철학이 드러나도록 [{platform_type}] 판매글을 작성하세요.
 
-    [중요 공통 지침]
-    - 강조를 위한 '**' 표시를 절대 사용하지 마세요.
-    - 모든 제목이나 강조는 이모지나 줄바꿈으로만 표현하세요.
-    - 엄마 작가님이 바로 복사해서 붙여넣기 좋게 순수한 텍스트 형식으로 출력하세요.
+    [절대 엄수 지침]
+    - 출력되는 모든 텍스트에서 별표 기호 '**'를 절대로 사용하지 마세요. 
+    - 텍스트를 굵게 만들기 위한 어떠한 마크다운 기호도 허용하지 않습니다.
+    - 강조가 필요하면 이모지(🌸, ✨, 📍)를 사용하거나 줄바꿈을 활용하세요.
+    - 엄마 작가님이 그대로 복사해서 붙여넣기 할 수 있는 '순수 텍스트'로만 답변하세요.
 
     [작가 정보] 브랜드명: 모그(Mog) / 어투: "~이지요^^", "~만들어봤어요", "ok👭" 등 밝고 다정함.
     [데이터 정보] 제품명: {name} / 특징: {keys} / 소재: {mat} / 사이즈: {size} / 제작진심: {process} / 포장: {care}
@@ -103,20 +105,17 @@ def generate_text(platform_type, specific_prompt):
                 model="gpt-4o",
                 messages=[{"role": "user", "content": full_prompt}]
             )
-            return response.choices[0].message.content
+            # 최종 결과물에서도 혹시 모를 별표를 한 번 더 제거하는 안전장치
+            clean_text = response.choices[0].message.content.replace("**", "")
+            return clean_text
         except Exception as e:
             st.error(f"오류 발생: {e}")
             return None
 
 with tab1:
-    st.subheader("인스타그램 스타일 (짧고 감성적으로)")
+    st.subheader("인스타그램 스타일 (깔끔&감성)")
     if st.button("🪄 인스타용 글 만들기"):
-        instr = """
-        - 너무 길지 않게 핵심만 요약해서 작성하세요.
-        - 도입부는 계절/날씨/작가님의 감성을 2~3줄로 짧고 다정하게.
-        - 본문은 매력 포인트를 해시태그와 섞어서 경쾌하게 설명하세요.
-        - '**' 기호는 절대 사용 금지.
-        """
+        instr = "너무 길지 않게 요약해서 작성하세요. 도입부는 다정하게, 본문은 매력 포인트를 해시태그와 섞어서 써주세요. 별표 기호는 절대 쓰지 마세요."
         result = generate_text("인스타그램", instr)
         if result:
             st.text_area("인스타 결과", value=result, height=400)
@@ -125,24 +124,19 @@ with tab2:
     st.subheader("아이디어스 스타일 (한 줄씩 정성 상세글)")
     if st.button("🪄 아이디어스용 글 만들기"):
         instr = """
-        - **중요: 모든 문장이 끝나면 반드시 줄바꿈(엔터)을 하여 한 줄에 한 문장만 나오게 하세요.**
+        - 모든 문장이 끝나면 반드시 줄바꿈을 하여 한 줄에 한 문장만 나오게 하세요.
         - 문단 사이에는 빈 줄을 넣어 여유 있게 구성하세요.
-        - 작가님의 샘플 말투(ok👭, 좋아요🌻)를 100% 반영하세요.
-        - 패치워크의 가치와 모그만의 정성을 한 줄 한 줄 다정하게 풀어내세요.
-        - '**' 기호는 절대 사용 금지.
+        - 작가님의 샘플 말투를 100% 반영하세요.
+        - 별표 기호는 절대 사용 금지.
         """
         result = generate_text("아이디어스", instr)
         if result:
             st.text_area("아이디어스 결과", value=result, height=600)
 
 with tab3:
-    st.subheader("스마트스토어 스타일 (친절한 정보 가이드)")
+    st.subheader("스마트스토어 스타일 (상세 정보 가이드)")
     if st.button("🪄 스마트스토어용 글 만들기"):
-        instr = """
-        - 구분선(⸻)과 불렛 포인트를 사용하여 깔끔하게 정리하세요.
-        - 정보(사이즈, 관리법 등)를 상세하고 친절하게 정리하되, 가독성을 높이세요.
-        - '**' 기호는 절대 사용 금지.
-        """
+        instr = "구분선(⸻)과 불렛 포인트를 사용하세요. 정보를 상세하고 친절하게 정리하되 별표 기호는 절대 사용하지 마세요."
         result = generate_text("스마트스토어", instr)
         if result:
             st.text_area("스토어 결과", value=result, height=700)
