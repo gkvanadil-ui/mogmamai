@@ -12,14 +12,14 @@ st.set_page_config(page_title="엄마의 AI 명품 비서", layout="wide")
 st.sidebar.header("⚙️ AI 설정")
 api_key = st.sidebar.text_input("OpenAI API Key를 넣어주세요", type="password")
 
-st.title("🕯️ 엄마작가님을 위한 AI 통합 비서")
-st.write("엄마의 따뜻한 말투 그대로, AI가 사진과 글을 완성해 드려요.")
+st.title("🕯️ 엄마작가님 전용 AI 통합 비서")
+st.write("엄마의 따뜻한 진심이 매체별로 가장 잘 전달되도록 AI가 글을 다듬어드려요.")
 
 st.divider()
 
 # --- 1. 사진 일괄 AI 지능형 보정 ---
 st.header("📸 1. 사진 한 번에 보정하기")
-uploaded_files = st.file_uploader("보정할 사진들을 선택하세요 (최대 10장)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+uploaded_files = st.file_uploader("보정할 사진들을 선택하세요", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
 def encode_image(image_bytes):
     return base64.b64encode(image_bytes).decode('utf-8')
@@ -33,7 +33,7 @@ if uploaded_files and api_key:
                 img_bytes = file.getvalue()
                 response = client.chat.completions.create(
                     model="gpt-4o",
-                    messages=[{"role": "user", "content": [{"type": "text", "text": "이 사진을 분석해서 화사하고 선명하게 보정할 b, c, s 수치를 0.8~1.6 사이 JSON으로 줘. 예: {'b': 1.2, 'c': 1.1, 's': 1.3}"},
+                    messages=[{"role": "user", "content": [{"type": "text", "text": "화사하고 선명한 보정 수치 JSON으로 줘. 예: {'b': 1.2, 'c': 1.1, 's': 1.3}"},
                     {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encode_image(img_bytes)}"}}]}],
                     response_format={ "type": "json_object" }
                 )
@@ -50,60 +50,86 @@ if uploaded_files and api_key:
 
 st.divider()
 
-# --- 2. 엄마 말투 학습 AI 상세페이지 작성 ---
-st.header("✍️ 2. 상세페이지 글 만들기")
-st.write("빈칸에 단어만 적어보세요. 엄마가 평소 쓰시는 다정한 말투로 바꿔드릴게요!")
+# --- 2. 매체별 맞춤형 상세페이지 작성 ---
+st.header("✍️ 2. 매체별 맞춤 글 만들기")
 
-with st.container():
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("📋 기본 정보")
-        name = st.text_input("📦 작품 이름", placeholder="예: 뜨왈 스트링 파우치")
-        keys = st.text_area("🔑 핵심 특징/쓰임새", placeholder="예: 가벼운 외출 ok, 파우치로도 좋음, 작지만 수납 잘됨")
-        mat = st.text_input("🧵 원단/소재", placeholder="예: 도톰한 린넨, 안감도 20수 린넨")
-    with col2:
-        st.subheader("🛠️ 상세 정보")
-        size = st.text_input("📏 사이즈/색상", placeholder="예: 28*30, 블랙그림은 블랙안감")
-        process = st.text_area("🛠️ 제작 포인트", placeholder="예: 바닥을 만들어주어 소지품 넣기 좋음")
-        care = st.text_input("💡 세탁/관리", placeholder="예: 찬물 손세탁")
+# 입력 영역
+col_in1, col_in2 = st.columns(2)
+with col_in1:
+    name = st.text_input("📦 작품 이름", placeholder="예: 토끼 자수 브로치")
+    keys = st.text_area("🔑 핵심 특징/감성", placeholder="예: 가을을 기다리며 만든 블라우스, 내 몸에 감기는 느낌")
+    mat = st.text_input("🧵 원단/소재", placeholder="예: 수입 리넨, 텐셜레이온 합사")
+with col_in2:
+    size = st.text_input("📏 사이즈/디테일", placeholder="예: 5.5*6.5cm, 손으로 만들어 조금씩 달라요")
+    process = st.text_area("🛠️ 제작 포인트/진심", placeholder="예: 하나하나에 들어간 정성의 총량은 일정하답니다")
+    care = st.text_input("💡 주의사항", placeholder="예: 리넨 특성상 표면 돌출은 불량이 아닙니다")
 
-if st.button("🪄 엄마 말투로 글 완성하기"):
+# 매체별 탭 생성
+tab1, tab2, tab3 = st.tabs(["📸 인스타그램", "🎨 아이디어스", "🛍️ 스마트스토어"])
+
+def generate_text(platform_type, specific_prompt):
     if not api_key:
-        st.warning("왼쪽 메뉴에 API 키를 입력해주세요!")
-    elif not name:
-        st.warning("작품 이름을 입력해주세요!")
-    else:
-        client = openai.OpenAI(api_key=api_key)
-        
-        # 엄마의 말투 샘플을 프롬프트에 직접 주입
-        prompt = f"""
-        당신은 핸드메이드 작가님의 SNS 판매글 작성을 돕는 비서입니다. 
-        아래의 [작가님 말투 샘플]을 완벽하게 학습하여 글을 작성하세요.
+        st.warning("사이드바에 API 키를 입력해주세요.")
+        return
+    if not name:
+        st.warning("작품 이름을 입력해주세요.")
+        return
 
-        [작가님 말투 샘플]
-        - 가벼운 외출도 ok👭 가방속에도 쏙하여 때로는 파우치로도 좋아요🌻
-        - 도톰한 린넨원단에 빈티지스러우면서도 아름다운 원단으로 만들었어요.
-        - 흐물거리지 않고 모양이 잡혀서 좋지요👍 튤립이나 하트 이모지를 적절히 사용함.
-        - 과한 수식어보다는 '쓰임새'와 '원단 퀄리티'를 솔직하게 강조함.
+    client = openai.OpenAI(api_key=api_key)
+    
+    full_prompt = f"""
+    당신은 핸드메이드 작가님의 판매를 돕는 전문 카피라이터입니다. 
+    엄마 작가님의 진심과 정성이 전달되도록 [{platform_type}] 전용 판매글을 작성하세요.
 
-        [입력 데이터]
-        제품명: {name} / 특징: {keys} / 소재: {mat} / 사이즈: {size} / 제작포인트: {process} / 관리: {care}
+    [공통 지침]
+    - 과한 미사여구와 아부성 표현은 자제할 것.
+    - 문단을 가독성 좋게 나누고 짧게 끊어서 작성할 것.
+    - 판매자의 진심이 느껴지는 따뜻하고 다정한 어투를 사용할 것.
+    - 맞춤법을 완벽하게 검수할 것.
 
-        [지시사항]
-        1. 한 줄씩 읽기 편하게 줄바꿈을 자주 할 것.
-        2. 말투는 샘플처럼 다정하고 경쾌한 '엄마 작가님' 말투로 (~해요, ~이지요, ok👭 등).
-        3. 과한 포장이나 아부는 생략하고, 원단의 느낌과 실용성을 담백하게 강조할 것.
-        4. 중간중간 🌻, 🌸, 🌷, 👍, 🧡 같은 이모지를 적절히 섞어줄 것.
-        5. 구성: [첫인사 및 쓰임새] - [원단과 디자인 설명] - [사이즈 및 디테일] - [안감/색상 안내] - [끝인사]
+    [데이터 정보]
+    작품명: {name} / 특징: {keys} / 소재: {mat} / 사이즈: {size} / 제작진심: {process} / 주의사항: {care}
+
+    {specific_prompt}
+    """
+    
+    with st.spinner(f"{platform_type} 스타일에 맞춰 정성을 담는 중..."):
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": full_prompt}]
+        )
+        return response.choices[0].message.content
+
+with tab1:
+    st.subheader("인스타그램: 감성 & 소통 스타일")
+    if st.button("🪄 인스타용 글 만들기"):
+        instr = """
+        - 어투: 주신 샘플처럼 문장 사이사이에 #해시태그를 섞고, '~이지요?', '~했어요ㅠㅠ', '^^' 같은 친근한 표현 사용.
+        - 구성: 감성적인 도입부(날씨나 기분 등) -> 작품의 촉감과 느낌 설명 -> 상세 사이즈와 정보 -> 하단 해시태그 모음.
+        - 포인트: '토끼같은..' 같은 따뜻한 문구와 이모지를 활용해 작가님의 개성을 드러낼 것.
         """
-        
-        with st.spinner("엄마의 말투로 예쁘게 글을 다듬고 있어요..."):
-            try:
-                response = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[{"role": "user", "content": prompt}]
-                )
-                st.success("✨ 엄마 맞춤형 판매글이 완성되었습니다!")
-                st.text_area("결과 (복사해서 사용하세요)", value=response.choices[0].message.content, height=550)
-            except Exception as e:
-                st.error(f"오류 발생: {e}")
+        result = generate_text("인스타그램", instr)
+        st.text_area("인스타 결과", value=result, height=500)
+
+with tab2:
+    st.subheader("아이디어스: 작가 스토리 스타일")
+    if st.button("🪄 아이디어스용 글 만들기"):
+        instr = """
+        - 어투: 기존 샘플처럼 '다정하고 정중한' 어투. 작품의 쓰임새와 가치를 강조.
+        - 구성: 작품을 만들게 된 동기 -> 원단의 특별함 -> 사용자를 향한 배려 -> 정성스러운 마무리 멘트.
+        - 포인트: "가벼운 외출도 ok👭", "모양이 잡혀서 좋지요👍" 처럼 작가의 경험이 담긴 표현 사용.
+        """
+        result = generate_text("아이디어스", instr)
+        st.text_area("아이디어스 결과", value=result, height=500)
+
+with tab3:
+    st.subheader("스마트스토어: 정보 전달 & 신뢰 스타일")
+    if st.button("🪄 스마트스토어용 글 만들기"):
+        instr = """
+        - 어투: 군더더기 없이 깔끔하고 신뢰감을 주는 어투. 
+        - 구성: [상품 요약] -> [상세 특징] -> [소재 및 규격] -> [세탁 및 관리안내].
+        - 포인트: 불렛 포인트(•)를 적극 활용하여 구매자가 정보를 즉시 확인할 수 있도록 가독성 극대화. 
+        - 주의사항(리넨 특성 등)을 정확하게 전달하여 신뢰를 높일 것.
+        """
+        result = generate_text("스마트스토어", instr)
+        st.text_area("스마트스토어 결과", value=result, height=500)
