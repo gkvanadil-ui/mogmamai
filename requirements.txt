@@ -1,3 +1,5 @@
 streamlit
-pillow
+pandas
+Pillow
 openai
+streamlit-drawable-canvas
