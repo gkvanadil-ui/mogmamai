@@ -99,25 +99,68 @@ with tabs[0]:
     st.write("💡 아래 버튼을 누르면 작가님 말투로 글이 써집니다.")
     btn_col1, btn_col2, btn_col3 = st.columns(3)
     
+    # 1. 인스타그램: 작가님 샘플의 '감성 일기' 스타일
     if btn_col1.button("📸 인스타그램"):
-        st.session_state.texts["인스타그램"] = process_mog_ai({"name": "인스타그램", "desc": "해시태그 포함, 감성적인 인사말과 계절감을 담은 일기 스타일."})
+        insta_guide = {
+            "name": "인스타그램",
+            "desc": """
+            - 분위기: 친구에게 편지를 쓰듯, 혹은 일기장에 기록하듯 다정하고 포근한 느낌
+            - 문장 지침: 
+                * "오늘 창가로 들어오는 햇살이 참 좋아서 한 컷 찍어봤어요🌸" 같은 계절감 있는 인사로 시작하세요.
+                * "요 작은 아이가 누구에게 가서 행복을 줄지 상상만 해도 설레요✨" 같은 작가님의 마음을 담아주세요.
+            - 구성: [날씨/일상 인사] + [제작 비하인드] + [다정한 상세정보] + [해시태그]
+            - 가이드: 줄바꿈을 아주 넉넉히 하고, 기호(*) 대신 반짝이와 구름 이모지를 사용해 주세요.
+            """
+        }
+        st.session_state.texts["인스타그램"] = process_mog_ai(insta_guide)
+        
+    # 2. 아이디어스: 작가님 샘플의 '느리지만 정직한' 스타일
     if btn_col2.button("🎨 아이디어스"):
-        st.session_state.texts["아이디어스"] = process_mog_ai({"name": "아이디어스", "desc": "줄바꿈을 매우 자주 하고, 작가님의 정성이 느껴지도록 짧은 문장 위주 작성."})
+        idus_guide = {
+            "name": "아이디어스",
+            "desc": """
+            - 분위기: 서두르지 않고 차분하게, 작품에 담긴 온기를 조곤조곤 설명하는 느낌
+            - 문장 지침: 
+                * "작가인 제가 직접 써보고 좋아서 만들기 시작했어요"라는 진솔함을 담아주세요.
+                * "기다려주시는 마음을 알기에 포장 하나도 허투루 하지 않아요"라는 문구를 녹여주세요.
+            - 핵심 단어: '느리지만 정직하게', '따스한 선물', '마음을 담아', '한 코 한 코'
+            - 가이드: 매우 잦은 줄바꿈을 사용하여 정성스럽게 쓴 느낌을 주고, 꽃(🌸)과 잎새(🌿) 이모지를 적절히 섞어주세요.
+            """
+        }
+        st.session_state.texts["아이디어스"] = process_mog_ai(idus_guide)
+        
+    # 3. 스마트스토어: 작가님 샘플의 '친절한 안부' 스타일
     if btn_col3.button("🛍️ 스마트스토어"):
-        st.session_state.texts["네이버 스마트스토어"] = process_mog_ai({"name": "네이버 스마트스토어", "desc": "구분선(⸻)을 활용하여 소재, 사이즈, 관리법 정보를 한눈에 보기 좋게 정리."})
+        store_guide = {
+            "name": "네이버 스마트스토어",
+            "desc": """
+            - 분위기: 멀리 있는 지인에게 작품을 소개하듯 다정하고 신뢰감 있는 느낌
+            - 문장 지침: 
+                * "작가인 제가 꼼꼼하게 골라온 소재들이에요"라며 품질에 대한 다정한 확신을 주세요.
+                * "세탁은 이렇게 하시면 오래오래 예쁘게 쓰실 수 있답니다^^" 같은 친절한 가이드를 포함하세요.
+            - 구성: 구분선(⸻)을 활용하여 [작가 인삿말] - [소재/사이즈] - [세탁/관리] 순서로 정리
+            """
+        }
+        st.session_state.texts["네이버 스마트스토어"] = process_mog_ai(store_guide)
 
+    # 결과물 출력 부분 (기존 로직 유지)
     for p_key in ["인스타그램", "아이디어스", "네이버 스마트스토어"]:
         if st.session_state.texts[p_key]:
             st.write(f"---")
-            st.write(f"**✅ {p_key} 결과**")
-            current_txt = st.text_area(f"{p_key} 내용", value=st.session_state.texts[p_key], height=300, key=f"area_{p_key}")
+            st.write(f"**✅ {p_key} 결과물이지요^^**")
+            current_txt = st.text_area(f"{p_key} 내용", value=st.session_state.texts[p_key], height=350, key=f"area_{p_key}")
             
-            with st.expander(f"✨ {p_key} 글 수정 요청"):
-                feedback = st.text_input("고칠 점을 적어주세요", key=f"f_{p_key}")
-                if st.button("♻️ 다시 쓰기", key=f"b_{p_key}"):
-                    refine_prompt = f"기존글: {current_txt}\n요청사항: {feedback}\n작가님 말투(~이지요^^)와 기호 금지 규칙을 지켜서 다시 써줘."
-                    st.session_state.texts[p_key] = process_mog_ai({"name": p_key, "desc": refine_prompt})
+            with st.expander(f"✨ {p_key} 글이 마음에 안 드신다면?"):
+                feedback = st.text_input("고치고 싶은 부분을 적어주세요", placeholder="예: 조금 더 짧게 써줘", key=f"f_{p_key}")
+                if st.button("♻️ 다시 정성껏 쓰기", key=f"b_{p_key}"):
+                    refine_prompt = {
+                        "name": p_key,
+                        "desc": f"기존글: {current_txt}\n요청사항: {feedback}\n작가님 샘플처럼 다정하고 포근한 말투로 다시 작성해 주세요."
+                    }
+                    st.session_state.texts[p_key] = process_mog_ai(refine_prompt)
                     st.rerun()
+
+
 
 # --- Tab 2: 사진보정 ---
 with tabs[1]:
