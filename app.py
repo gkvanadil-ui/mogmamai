@@ -8,16 +8,12 @@ import json
 # 1. 앱 페이지 설정
 st.set_page_config(page_title="핸드메이드 잡화점 모그 AI 비서", layout="wide")
 
-# --- API 키 설정 ---
-# 1순위: Streamlit Secrets에서 가져오기
-# 2순위: 사이드바에서 직접 입력받기
+# --- API 키 설정 (Secrets 우선) ---
 api_key = st.secrets.get("OPENAI_API_KEY")
 
 if not api_key:
     st.sidebar.header("⚙️ AI 설정")
     api_key = st.sidebar.text_input("OpenAI API Key를 넣어주세요", type="password")
-    if not api_key:
-        st.info("왼쪽 사이드바에 API 키를 입력하거나 Secrets에 설정해주세요.")
 else:
     st.sidebar.success("✅ API 키가 자동으로 로드되었습니다.")
 
@@ -79,7 +75,7 @@ tab1, tab2, tab3 = st.tabs(["📸 인스타그램", "🎨 아이디어스", "�
 
 def generate_text(platform_type, specific_prompt):
     if not api_key:
-        st.warning("API 키가 없습니다.")
+        st.warning("API 키가 필요합니다.")
         return None
     if not name:
         st.warning("이름을 입력해주세요.")
@@ -88,14 +84,9 @@ def generate_text(platform_type, specific_prompt):
     client = openai.OpenAI(api_key=api_key)
     full_prompt = f"""
     당신은 브랜드 '모그(Mog)'의 전담 카피라이터입니다. 
-    작가 '모그'님의 철학이 드러나도록 [{platform_type}] 판매글을 아주 상세하고 길게 작성하세요.
+    작가 '모그'님의 철학이 드러나도록 [{platform_type}] 전용 판매글을 작성하세요.
 
-    [모그 작가님의 브랜드 철학 및 어투]
-    1. 희소성: "같은 디자인은 다시 만들지 않습니다. 세상에 단 하나뿐인 작품입니다."
-    2. 손맛: "일정하지 않은 스티치와 바느질 자국에서 느껴지는 손작업만의 온기."
-    3. 실용성: "뒷포켓의 편리함, 안감 처리된 튼튼한 파우치, 야무진 수납" 포인트 강조.
-    4. 포장: "모든 배송은 소중한 친구에게 선물하는 마음으로 정성껏 포장합니다."
-    5. 어투: "~이지요^^", "~만들어봤어요", "ok👭", "좋아요🌻" 처럼 밝고 다정한 말투.
+    [작가 정보] 브랜드명: 모그(Mog) / 어투: "~이지요^^", "~만들어봤어요", "ok👭" 등 밝고 다정함.
 
     [데이터 정보]
     제품명: {name} / 특징: {keys} / 소재: {mat} / 사이즈: {size} / 제작진심: {process} / 포장: {care}
@@ -103,7 +94,7 @@ def generate_text(platform_type, specific_prompt):
     {specific_prompt}
     """
     
-    with st.spinner(f"작가 '모그'의 진심을 담아 작성 중..."):
+    with st.spinner(f"작가 '모그'의 감성을 담아 작성 중..."):
         try:
             response = client.chat.completions.create(
                 model="gpt-4o",
@@ -111,29 +102,35 @@ def generate_text(platform_type, specific_prompt):
             )
             return response.choices[0].message.content
         except Exception as e:
-            st.error(f"글 생성 중 오류가 발생했습니다: {e}")
+            st.error(f"오류 발생: {e}")
             return None
 
 with tab1:
-    st.subheader("인스타그램 스타일")
+    st.subheader("인스타그램 스타일 (깔끔&감성)")
     if st.button("🪄 인스타용 글 만들기"):
-        instr = "감성적인 도입부, 문장 중간의 해시태그, 다정한 말투를 섞어 상세히 써주세요."
+        instr = """
+        - **중요: 너무 길지 않게 작성할 것.** (모바일 1~2화면 이내)
+        - 도입부: 계절이나 날씨, 작품을 만든 감정을 2~3줄로 짧고 다정하게 표현.
+        - 본문: 작품의 가장 큰 매력과 소재감을 해시태그와 섞어서 경쾌하게 설명.
+        - 정보: 사이즈나 소재는 하단에 깔끔하게 한 줄씩만 요약.
+        - 마무리: 기분 좋은 인사와 관련 해시태그 7~10개.
+        """
         result = generate_text("인스타그램", instr)
         if result:
-            st.text_area("인스타 결과", value=result, height=550)
+            st.text_area("인스타 결과", value=result, height=400)
 
 with tab2:
-    st.subheader("아이디어스 스타일")
+    st.subheader("아이디어스 스타일 (정성 가득 상세글)")
     if st.button("🪄 아이디어스용 글 만들기"):
-        instr = "작가님의 제작 스토리와 샘플 어투(ok👭, 좋아요🌻)를 적극 반영하고, 패치워크의 가치와 제작 스토리를 상세히 풀어내세요."
+        instr = "작가님의 제작 스토리와 샘플 어투를 적극 반영하여 아주 정성스럽고 길게 풀어내세요."
         result = generate_text("아이디어스", instr)
         if result:
             st.text_area("아이디어스 결과", value=result, height=600)
 
 with tab3:
-    st.subheader("스마트스토어 스타일")
+    st.subheader("스마트스토어 스타일 (친절한 정보 가이드)")
     if st.button("🪄 스마트스토어용 글 만들기"):
-        instr = "구분선(⸻)과 불렛 포인트를 사용하고, 샘플처럼 정보(사이즈, 관리법 등)를 매우 상세하고 친절하게 정리하세요."
+        instr = "구분선(⸻)과 불렛 포인트를 사용하고, 정보(사이즈, 관리법 등)를 상세하고 친절하게 정리하세요."
         result = generate_text("스마트스토어", instr)
         if result:
             st.text_area("스토어 결과", value=result, height=700)
