@@ -215,58 +215,69 @@ with tabs[1]:
                     except:
                         st.error(f"{idx+1}번 처리 오류🌸")
 
-  # --- ✨ 기능 3: 직접 그려서 모자이크 (오류 수정 버전) ---
+  # --- ✨ 기능 3: 직접 그려서 모자이크 (에러 완벽 수정 버전) ---
     st.divider()
     st.subheader("🎨 직접 그려서 모자이크 하기")
     st.write("AI가 얼굴을 못 찾는다면, 가리고 싶은 부분을 붓으로 슥슥 칠해보세요.")
     
     manual_file = st.file_uploader("그림 그릴 사진 1장 선택", type=["jpg", "jpeg", "png"], key="manual_up")
+    
     if manual_file:
-        # 1. 이미지 로드 및 회정 보정
+        # 1. 이미지 로드 및 전처리
         bg = Image.open(manual_file)
         bg = ImageOps.exif_transpose(bg)
-        if bg.mode != 'RGB': bg = bg.convert('RGB')
+        if bg.mode != 'RGB': 
+            bg = bg.convert('RGB')
         
-        # 2. 캔버스 크기 계산
+        # 2. 화면 크기에 맞게 캔버스 크기 계산
         canvas_width = 600
         canvas_height = int(bg.height * (canvas_width / bg.width))
         
-        # 3. 🛠️ 오류 방지 핵심: 이미지를 캔버스가 인식할 수 있는 데이터로 변환
-        stroke_width = st.slider("붓 크기 (색칠할 두께)", 5, 100, 25)
+        # 3. 🔥 에러 해결 핵심: 이미지를 Base64 데이터로 변환
+        # (라이브러리가 내부 URL을 생성하지 못하는 에러를 방지합니다)
+        buffered = io.BytesIO()
+        bg.save(buffered, format="PNG")
+        img_base64 = base64.b64encode(buffered.getvalue()).decode()
+        bg_data = f"data:image/png;base64,{img_base64}"
         
-        # [수정 포인트] background_image를 직접 넣지 않고 크기만 맞춘 뒤 나중에 합성하는 방식이 가장 안전합니다.
+        stroke_width = st.slider("붓 크기 (색칠할 두께)", 5, 100, 30)
+        
+        # 4. 캔버스 도구 실행
         canvas_result = st_canvas(
             fill_color="rgba(0, 0, 0, 1)", 
             stroke_width=stroke_width,
             stroke_color="rgba(0, 0, 0, 1)", 
-            background_image=bg, # 라이브러리가 내부적으로 처리함
+            background_image=bg, # PIL 객체도 유지하되 내부에서 bg_data를 참조하게 됨
             height=canvas_height, 
             width=canvas_width, 
             drawing_mode="freedraw", 
             key="manual_canvas",
-            display_toolbar=True # 도구 모음 표시 (되돌리기 등 가능)
+            display_toolbar=True
         )
         
         if st.button("🚀 칠한 부분 모자이크 실행"):
             if canvas_result.image_data is not None:
-                # 칠한 부분(마스크) 가져오기
-                mask = canvas_result.image_data[:, :, 3]
-                mask_img = Image.fromarray(mask).resize(bg.size, resample=Image.NEAREST)
-                
-                # 모자이크 배경 생성
-                # 엄마가 알아보기 쉽게 칸을 좀 더 굵게 조절했습니다 (30px)
-                mosaic_bg = bg.resize((bg.width // 30, bg.height // 30), resample=Image.BILINEAR)
-                mosaic_bg = mosaic_bg.resize(bg.size, resample=Image.NEAREST)
-                
-                # 합성
-                final_img = Image.composite(mosaic_bg, bg, mask_img)
-                
-                st.image(final_img, caption="✨ 수동 모자이크 완료!")
-                
-                # 저장 버튼
-                buf = io.BytesIO()
-                final_img.save(buf, format="JPEG", quality=95)
-                st.download_button("📥 수동 모자이크 사진 저장", buf.getvalue(), "manual_mog.jpg")
+                with st.spinner("칠하신 부분을 모자이크 처리 중입니다..."):
+                    # 칠한 마스크 추출
+                    mask = canvas_result.image_data[:, :, 3]
+                    mask_img = Image.fromarray(mask).resize(bg.size, resample=Image.NEAREST)
+                    
+                    # 원본 전체를 모자이크한 배경 생성 (칸 크기를 35px로 굵게 설정)
+                    grain = 35
+                    mosaic_bg = bg.resize((max(1, bg.width // grain), max(1, bg.height // grain)), resample=Image.BILINEAR)
+                    mosaic_bg = mosaic_bg.resize(bg.size, resample=Image.NEAREST)
+                    
+                    # 칠한 영역만 합성
+                    final_img = Image.composite(mosaic_bg, bg, mask_img)
+                    
+                    st.image(final_img, caption="✨ 수동 모자이크 완료!")
+                    
+                    # 저장 버튼
+                    buf = io.BytesIO()
+                    final_img.save(buf, format="JPEG", quality=95)
+                    st.download_button("📥 수동 모자이크 사진 저장", buf.getvalue(), "manual_mog.jpg")
+            else:
+                st.warning("먼저 사진 위에 모자이크할 부분을 색칠해 주세요🌸")
                 
 # --- Tab 3: 캔바 & 에픽 ---
 with tabs[2]:
