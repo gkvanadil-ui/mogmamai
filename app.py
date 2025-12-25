@@ -147,7 +147,7 @@ with tabs[0]:
     for p_key in ["인스타그램", "아이디어스", "네이버 스마트스토어"]:
         if st.session_state.texts[p_key]:
             st.write(f"---")
-            st.write(f"**✅ {p_key} 결과물이지요^^**")
+            st.write(f"**✅ {p_key} 결과물이에요!**")
             current_txt = st.text_area(f"{p_key} 내용", value=st.session_state.texts[p_key], height=350, key=f"area_{p_key}")
             
             with st.expander(f"✨ {p_key} 글이 마음에 안 드신다면?"):
