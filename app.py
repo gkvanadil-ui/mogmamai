@@ -180,65 +180,81 @@ with tabs[1]:
                     except:
                         st.error(f"{idx+1}번 보정 실패🌸")
                         
-       # --- 기능 2: 얼굴 모자이크 (정밀 감지 로직) ---
+       # --- 기능 2: 얼굴 모자이크 (AI 시각 인지 강화 버전) ---
         if c2.button("👤 정밀 얼굴 모자이크 시작"):
             client = openai.OpenAI(api_key=api_key)
             def encode_image(image_bytes): return base64.b64encode(image_bytes).decode('utf-8')
 
             for idx, file in enumerate(uploaded_files):
                 img_bytes = file.getvalue()
-                with st.spinner(f"{idx+1}번 사진에서 사람 얼굴을 정밀 분석 중..."):
+                # 원본 이미지를 먼저 열어서 정확한 크기 확인
+                temp_img = Image.open(io.BytesIO(img_bytes))
+                temp_img = ImageOps.exif_transpose(temp_img)
+                w, h = temp_img.size
+
+                with st.spinner(f"{idx+1}번 사진에서 얼굴을 꼼꼼히 찾는 중..."):
                     try:
-                        # 정밀 감지를 위한 강화된 프롬프트
                         response = client.chat.completions.create(
                             model="gpt-4o",
                             messages=[{"role": "user", "content": [
-                                {"type": "text", "text": """당신은 인물 사진 보안 전문가입니다. 
-                                사진에서 '진짜 사람의 얼굴'만 찾아내어 좌표를 출력하세요. 
-
-                                [지침]
-                                1. 배경의 사물, 인형, 동물의 얼굴은 무시하고 오직 '사람의 얼굴'만 찾으세요.
-                                2. 머리카락과 턱선까지 포함하여 얼굴 전체를 덮을 수 있는 넉넉한 사각형 좌표를 계산하세요.
-                                3. 좌표는 이미지 전체 크기를 0~1000으로 가정하고 [ymin, xmin, ymax, xmax] 형태로 답하세요.
+                                {"type": "text", "text": f"""이 사진의 크기는 가로 {w}px, 세로 {h}px입니다. 
+                                사진 속 모든 사람의 얼굴 위치를 찾으세요. 
                                 
-                                결과는 반드시 이 JSON 형식으로만 답하세요: {"faces": [[ymin, xmin, ymax, xmax], ...]}"""},
+                                [중요 지침]
+                                1. 배경 사물이나 인형이 아닌 '실제 사람의 얼굴'만 찾으세요.
+                                2. 얼굴의 상하좌우 끝 지점을 픽셀 좌표로 정확히 계산하세요.
+                                3. 반드시 아래 JSON 형식으로만 답하세요. 
+                                (얼굴이 여러 명이면 리스트에 모두 넣으세요)
+                                
+                                {{"faces": [ {{"ymin": y1, "xmin": x1, "ymax": y2, "xmax": x2}}, ... ]}}"""},
                                 {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encode_image(img_bytes)}"}}
                             ]}],
                             response_format={ "type": "json_object" }
                         )
+                        
                         res = json.loads(response.choices[0].message.content)
-                        
-                        img = Image.open(io.BytesIO(img_bytes))
-                        img = ImageOps.exif_transpose(img)
-                        width, height = img.size
-                        
                         faces = res.get('faces', [])
+                        
+                        img = temp_img.copy() # 보정용 이미지 복사
+                        
                         if not faces:
-                            st.info(f"💡 {idx+1}번 사진에는 사람의 얼굴이 보이지 않아 그대로 두었습니다^^")
+                            st.info(f"💡 {idx+1}번 사진은 가릴 얼굴이 없다고 판단했어요^^")
                         else:
-                            for face in faces:
-                                ymin, xmin, ymax, xmax = face
-                                # 좌표 변환 및 약간의 여유(Margin) 추가로 더 확실하게 가림
-                                margin = 10 
-                                l = max(0, (xmin - margin) * width / 1000)
-                                t = max(0, (ymin - margin) * height / 1000)
-                                r = min(width, (xmax + margin) * width / 1000)
-                                b = min(height, (ymax + margin) * height / 1000)
+                            for f in faces:
+                                # AI가 준 좌표값 가져오기 (비율이 아닌 실제 픽셀값으로 요청)
+                                # 만약 AI가 0~1000 비율로 줬을 경우를 대비한 안전 로직 추가
+                                y1, x1, y2, x2 = f['ymin'], f['xmin'], f['ymax'], f['xmax']
                                 
-                                face_reg = img.crop((l, t, r, b))
-                                # 모자이크 입자를 더 굵게 하여 확실하게 익명성 보장
-                                m_size = max(4, int(face_reg.size[0] / 15)) 
-                                face_reg = face_reg.resize((m_size, m_size), resample=Image.BILINEAR)
-                                face_reg = face_reg.resize((int(r-l), int(b-t)), resample=Image.NEAREST)
-                                img.paste(face_reg, (int(l), int(t)))
+                                # AI가 1000 단위 비율로 줬는지, 픽셀로 줬는지 판단하여 보정
+                                if y2 <= 1000 and x2 <= 1000:
+                                    left, top = x1 * w / 1000, y1 * h / 1000
+                                    right, bottom = x2 * w / 1000, y2 * h / 1000
+                                else:
+                                    left, top, right, bottom = x1, y1, x2, y2
+
+                                # 영역이 너무 작게 잡히는 것 방지 (상하좌우 15%씩 확장)
+                                pad_w = (right - left) * 0.15
+                                pad_h = (bottom - top) * 0.15
+                                left = max(0, left - pad_w)
+                                top = max(0, top - pad_h)
+                                right = min(w, right + pad_w)
+                                bottom = min(h, bottom + pad_h)
+
+                                # 모자이크 실행
+                                face_reg = img.crop((int(left), int(top), int(right), int(bottom)))
+                                # 모자이크 강도 강화 (10x10 픽셀로 대폭 축소 후 확대)
+                                m_grain = max(4, int(face_reg.size[0] / 12))
+                                face_reg = face_reg.resize((m_grain, m_grain), resample=Image.BOX)
+                                face_reg = face_reg.resize((int(right-left), int(bottom-top)), resample=Image.NEAREST)
+                                img.paste(face_reg, (int(left), int(top)))
                             
-                            st.image(img, caption=f"👤 인물 보호 완료 ({idx+1}번)")
+                            st.image(img, caption=f"👤 {idx+1}번 인물 보호 완료")
                             buf = io.BytesIO()
                             img.save(buf, format="JPEG", quality=95)
-                            st.download_button(f"📥 {idx+1}번 결과 저장", buf.getvalue(), f"mog_face_{idx+1}.jpg", key=f"ms_{idx}")
-                    except Exception as e:
-                        st.error(f"{idx+1}번 처리 중 오류가 발생했습니다. 다시 시도해 주세요🌸")
-                
+                            st.download_button(f"📥 {idx+1}번 저장", buf.getvalue(), f"mog_face_{idx+1}.jpg", key=f"ms_{idx}")
+                    except:
+                        st.error(f"{idx+1}번 처리 중 오류가 났어요. 다시 한번 눌러주셔요🌸")
+                        
 # --- Tab 3: 캔바 & 에픽 (더 자세하고 친절한 설명) ---
 with tabs[2]:
     st.subheader("🎨 예쁜 상세페이지와 영상 만들기")
