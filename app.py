@@ -18,7 +18,7 @@ else:
     st.sidebar.success("✅ API 키가 자동으로 로드되었습니다.")
 
 st.title("🕯️ 작가 '모그(Mog)' 전용 AI 통합 비서")
-st.write("'세상에 단 하나뿐인 온기'를 전하는 모그 작가님의 철학을 담아드립니다.")
+st.write("'세상에 단 하나뿐인 온기'를 전하는 모그 작가님의 진심을 담아드립니다.")
 
 st.divider()
 
@@ -82,16 +82,17 @@ def generate_text(platform_type, specific_prompt):
         return None
 
     client = openai.OpenAI(api_key=api_key)
-    # [지침 강화] 별표(**) 사용 절대 금지 명령 추가
+    # [지침 강화] 카피라이터 소개 제거 및 작가 직접 화법 강조
     full_prompt = f"""
-    당신은 브랜드 '모그(Mog)'의 전담 카피라이터입니다. 
-    작가 '모그'님의 철학이 드러나도록 [{platform_type}] 판매글을 작성하세요.
+    당신은 핸드메이드 브랜드 '모그(Mog)'를 운영하는 작가 자신입니다. 
+    당신이 직접 고객에게 이야기하는 형식으로 [{platform_type}] 판매글을 작성하세요.
 
     [절대 엄수 지침]
-    - 출력되는 모든 텍스트에서 별표 기호 '**'를 절대로 사용하지 마세요. 
-    - 텍스트를 굵게 만들기 위한 어떠한 마크다운 기호도 허용하지 않습니다.
-    - 강조가 필요하면 이모지(🌸, ✨, 📍)를 사용하거나 줄바꿈을 활용하세요.
-    - 엄마 작가님이 그대로 복사해서 붙여넣기 할 수 있는 '순수 텍스트'로만 답변하세요.
+    - 절대로 본인을 '카피라이터'나 'AI 비서'라고 소개하지 마세요. 
+    - 글의 시작은 작가로서의 인사("안녕하세요, 모그입니다", "날씨가 참 좋지요^^" 등)로 시작하세요.
+    - 별표 기호 '**'를 절대로 사용하지 마세요. (굵은 글씨 금지)
+    - 강조가 필요하면 이모지나 줄바꿈을 활용하세요.
+    - 엄마 작가님이 그대로 복사해서 붙여넣기 할 수 있는 순수한 텍스트만 출력하세요.
 
     [작가 정보] 브랜드명: 모그(Mog) / 어투: "~이지요^^", "~만들어봤어요", "ok👭" 등 밝고 다정함.
     [데이터 정보] 제품명: {name} / 특징: {keys} / 소재: {mat} / 사이즈: {size} / 제작진심: {process} / 포장: {care}
@@ -99,13 +100,12 @@ def generate_text(platform_type, specific_prompt):
     {specific_prompt}
     """
     
-    with st.spinner(f"작가 '모그'의 감성을 담아 작성 중..."):
+    with st.spinner(f"작가 '모그'의 목소리로 작성 중..."):
         try:
             response = client.chat.completions.create(
                 model="gpt-4o",
                 messages=[{"role": "user", "content": full_prompt}]
             )
-            # 최종 결과물에서도 혹시 모를 별표를 한 번 더 제거하는 안전장치
             clean_text = response.choices[0].message.content.replace("**", "")
             return clean_text
         except Exception as e:
@@ -115,7 +115,7 @@ def generate_text(platform_type, specific_prompt):
 with tab1:
     st.subheader("인스타그램 스타일 (깔끔&감성)")
     if st.button("🪄 인스타용 글 만들기"):
-        instr = "너무 길지 않게 요약해서 작성하세요. 도입부는 다정하게, 본문은 매력 포인트를 해시태그와 섞어서 써주세요. 별표 기호는 절대 쓰지 마세요."
+        instr = "작가로서 가벼운 일상 인사를 건네며 시작하세요. 너무 길지 않게 요약하고, 매력 포인트를 해시태그와 섞어주세요. 별표 기호는 금지입니다."
         result = generate_text("인스타그램", instr)
         if result:
             st.text_area("인스타 결과", value=result, height=400)
@@ -125,9 +125,9 @@ with tab2:
     if st.button("🪄 아이디어스용 글 만들기"):
         instr = """
         - 모든 문장이 끝나면 반드시 줄바꿈을 하여 한 줄에 한 문장만 나오게 하세요.
+        - 본인을 '모그'라고 지칭하며 제작 스토리와 정성을 한 줄씩 다정하게 풀어내세요.
         - 문단 사이에는 빈 줄을 넣어 여유 있게 구성하세요.
-        - 작가님의 샘플 말투를 100% 반영하세요.
-        - 별표 기호는 절대 사용 금지.
+        - 작가님의 샘플 말투를 100% 반영하고, 별표 기호는 절대 사용 금지입니다.
         """
         result = generate_text("아이디어스", instr)
         if result:
@@ -136,7 +136,7 @@ with tab2:
 with tab3:
     st.subheader("스마트스토어 스타일 (상세 정보 가이드)")
     if st.button("🪄 스마트스토어용 글 만들기"):
-        instr = "구분선(⸻)과 불렛 포인트를 사용하세요. 정보를 상세하고 친절하게 정리하되 별표 기호는 절대 사용하지 마세요."
+        instr = "구분선(⸻)과 불렛 포인트를 사용하세요. 작가로서 정보를 상세하고 친절하게 정리하되 별표 기호는 절대 사용하지 마세요."
         result = generate_text("스마트스토어", instr)
         if result:
             st.text_area("스토어 결과", value=result, height=700)
