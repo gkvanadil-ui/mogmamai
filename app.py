@@ -13,12 +13,12 @@ st.sidebar.header("⚙️ AI 설정")
 api_key = st.sidebar.text_input("OpenAI API Key를 넣어주세요", type="password")
 
 st.title("🕯️ 엄마작가님을 위한 AI 통합 비서")
-st.write("빈칸에 짧은 단어만 적어주세요. AI가 정성 가득한 판매글로 완성해 드립니다.")
+st.write("사진은 화사하게! 글은 깔끔하고 밝게! AI가 엄마의 작업을 도와드려요.")
 
 st.divider()
 
-# --- 1. 사진 일괄 AI 보정 (이전 기능 유지) ---
-st.header("📸 1. AI 지능형 사진 보정")
+# --- 1. 사진 일괄 AI 보정 ---
+st.header("📸 1. 사진 한 번에 보정하기")
 uploaded_files = st.file_uploader("보정할 사진들을 선택하세요 (최대 10장)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
 def encode_image(image_bytes):
@@ -50,27 +50,24 @@ if uploaded_files and api_key:
 
 st.divider()
 
-# --- 2. AI 문장 보완 상세페이지 작성 (요청하신 개별 입력창 버전) ---
-st.header("✍️ 2. 상세페이지 내용 채우기")
-st.write("각 칸에 생각나는 단어들만 툭툭 적어보세요. 나머지는 AI가 예쁘게 써드릴게요!")
+# --- 2. AI 문장 보완 상세페이지 (가독성 & 캐주얼 톤) ---
+st.header("✍️ 2. 상세페이지 글 만들기")
+st.write("빈칸에 단어만 적어보세요. 읽기 편하고 기분 좋은 문장으로 만들어드릴게요!")
 
-# 입력창을 그룹별로 배치
 with st.container():
     col1, col2 = st.columns(2)
-    
     with col1:
         st.subheader("📋 기본 정보")
         name = st.text_input("📦 작품 이름", placeholder="예: 린넨 앞치마")
-        keys = st.text_area("🔑 핵심 특징/키워드", placeholder="예: 가벼움, 통기성 좋음, 넉넉한 주머니")
+        keys = st.text_area("🔑 핵심 특징/키워드", placeholder="예: 가볍다, 주머니 큼, 색이 예쁨")
         mat = st.text_input("🧵 소재/재질", placeholder="예: 워싱 린넨 100%")
-        
     with col2:
         st.subheader("🛠️ 상세 정보")
-        size = st.text_input("📏 크기/사이즈", placeholder="예: 프리사이즈 (총장 80cm)")
-        process = st.text_area("🛠️ 제작 과정", placeholder="예: 1인 작가가 직접 재단하고 봉제함")
-        care = st.text_input("💡 관리/세탁법", placeholder="예: 울코스 단독 세탁 권장")
+        size = st.text_input("📏 크기/사이즈", placeholder="예: 프리사이즈")
+        process = st.text_area("🛠️ 제작 과정", placeholder="예: 직접 재단하고 봉제함")
+        care = st.text_input("💡 관리/세탁법", placeholder="예: 울코스 세탁기 가능")
 
-if st.button("🪄 AI에게 문장 보완 및 글쓰기 요청"):
+if st.button("🪄 AI에게 글쓰기 부탁하기"):
     if not api_key:
         st.warning("왼쪽 메뉴에 API 키를 입력해주세요!")
     elif not name:
@@ -79,33 +76,27 @@ if st.button("🪄 AI에게 문장 보완 및 글쓰기 요청"):
         client = openai.OpenAI(api_key=api_key)
         
         prompt = f"""
-        당신은 핸드메이드 작가를 돕는 전문 카피라이터입니다. 
-        작가가 입력한 '짧은 메모'를 바탕으로 내용을 풍성하게 보충하여 다정한 판매글을 작성하세요.
+        당신은 핸드메이드 마켓의 센스 있는 카피라이터입니다. 
+        작가가 입력한 단어들을 바탕으로 읽기 편하고 기분 좋은 판매글을 작성하세요.
         
-        [입력 데이터]
-        - 작품명: {name}
-        - 특징: {keys}
-        - 소재: {mat}
-        - 사이즈: {size}
-        - 제작과정: {process}
-        - 관리방법: {care}
+        [데이터]
+        작품명: {name} / 특징: {keys} / 소재: {mat} / 사이즈: {size} / 과정: {process} / 관리: {care}
         
-        [작성 지침]
-        1. 작가의 짧은 메모를 감성적이고 전문적인 문장으로 확장할 것. 
-           (예: '가벼움' -> '장시간 착용해도 어깨에 무리가 가지 않는 놀라운 가벼움을 선사합니다')
-        2. 말투는 정중하고 따스한 1인칭 작가 시점으로 작성할 것.
-        3. 완벽한 맞춤법 검사를 수행할 것.
-        4. 구성: [작가 인삿말] - [작품의 매력 포인트] - [상세 규격(소재, 크기, 과정)] - [오래 쓰는 관리법] - [끝인사]
+        [지시사항]
+        1. 말투: 아부하는 느낌의 과한 포장은 금지. 밝고 경쾌한 '캐주얼 톤'으로 작성. (~해요, ~입니다 등)
+        2. 가독성: 문장을 짧고 간결하게 끊어 쓰고, 불필요한 미사여구는 삭제할 것.
+        3. 보완: 엄마가 쓴 단어를 문맥에 맞게 자연스럽게 풀어서 쓸 것.
+        4. 구성: [인사말] - [작품 포인트(간결하게)] - [상세 정보 요약] - [세탁 및 관리] - [맺음말]
+        5. 맞춤법을 완벽하게 교정할 것.
         """
         
-        with st.spinner("AI 작가가 엄마의 메모를 명품 문장으로 다듬는 중..."):
+        with st.spinner("AI가 깔끔하게 글을 정리 중입니다..."):
             try:
-                # 최신 gpt-4o 모델을 사용하여 더 자연스러운 문장 생성
                 response = client.chat.completions.create(
                     model="gpt-4o",
                     messages=[{"role": "user", "content": prompt}]
                 )
-                st.success("✨ 판매글이 예쁘게 완성되었습니다!")
-                st.text_area("완성된 결과 (복사해서 사용하세요)", value=response.choices[0].message.content, height=500)
+                st.success("✨ 읽기 좋은 판매글이 완성되었습니다!")
+                st.text_area("완성 결과", value=response.choices[0].message.content, height=500)
             except Exception as e:
-                st.error(f"오류가 발생했습니다: {e}")
+                st.error(f"오류 발생: {e}")
