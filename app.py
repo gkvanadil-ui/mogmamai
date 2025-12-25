@@ -8,9 +8,18 @@ import json
 # 1. 앱 페이지 설정
 st.set_page_config(page_title="핸드메이드 잡화점 모그 AI 비서", layout="wide")
 
-# 사이드바 API 설정
-st.sidebar.header("⚙️ AI 설정")
-api_key = st.sidebar.text_input("OpenAI API Key", type="password")
+# --- API 키 설정 ---
+# 1순위: Streamlit Secrets에서 가져오기
+# 2순위: 사이드바에서 직접 입력받기
+api_key = st.secrets.get("OPENAI_API_KEY")
+
+if not api_key:
+    st.sidebar.header("⚙️ AI 설정")
+    api_key = st.sidebar.text_input("OpenAI API Key를 넣어주세요", type="password")
+    if not api_key:
+        st.info("왼쪽 사이드바에 API 키를 입력하거나 Secrets에 설정해주세요.")
+else:
+    st.sidebar.success("✅ API 키가 자동으로 로드되었습니다.")
 
 st.title("🕯️ 작가 '모그(Mog)' 전용 AI 통합 비서")
 st.write("'세상에 단 하나뿐인 온기'를 전하는 모그 작가님의 철학을 문장에 담아드립니다.")
@@ -31,22 +40,25 @@ if uploaded_files and api_key:
         for idx, file in enumerate(uploaded_files):
             with st.spinner(f"{idx+1}번 사진 분석 중..."):
                 img_bytes = file.getvalue()
-                response = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[{"role": "user", "content": [{"type": "text", "text": "화사하고 선명한 보정 수치 JSON."},
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encode_image(img_bytes)}"}}]}],
-                    response_format={ "type": "json_object" }
-                )
-                res = json.loads(response.choices[0].message.content)
-                img = Image.open(io.BytesIO(img_bytes))
-                edited = ImageEnhance.Brightness(img).enhance(res.get('b', 1.1))
-                edited = ImageEnhance.Color(edited).enhance(res.get('c', 1.1))
-                edited = ImageEnhance.Sharpness(edited).enhance(res.get('s', 1.2))
-                with cols[idx]:
-                    st.image(edited, use_container_width=True)
-                    buf = io.BytesIO()
-                    edited.save(buf, format="JPEG")
-                    st.download_button(f"📥 저장 {idx+1}", buf.getvalue(), f"img_{idx+1}.jpg")
+                try:
+                    response = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[{"role": "user", "content": [{"type": "text", "text": "화사하고 선명한 보정 수치 JSON."},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encode_image(img_bytes)}"}}]}],
+                        response_format={ "type": "json_object" }
+                    )
+                    res = json.loads(response.choices[0].message.content)
+                    img = Image.open(io.BytesIO(img_bytes))
+                    edited = ImageEnhance.Brightness(img).enhance(res.get('b', 1.1))
+                    edited = ImageEnhance.Color(edited).enhance(res.get('c', 1.1))
+                    edited = ImageEnhance.Sharpness(edited).enhance(res.get('s', 1.2))
+                    with cols[idx]:
+                        st.image(edited, use_container_width=True)
+                        buf = io.BytesIO()
+                        edited.save(buf, format="JPEG")
+                        st.download_button(f"📥 저장 {idx+1}", buf.getvalue(), f"img_{idx+1}.jpg")
+                except Exception as e:
+                    st.error(f"사진 보정 중 오류 발생: {e}")
 
 st.divider()
 
@@ -67,7 +79,7 @@ tab1, tab2, tab3 = st.tabs(["📸 인스타그램", "🎨 아이디어스", "�
 
 def generate_text(platform_type, specific_prompt):
     if not api_key:
-        st.warning("API 키를 넣어주세요.")
+        st.warning("API 키가 없습니다.")
         return None
     if not name:
         st.warning("이름을 입력해주세요.")
@@ -99,7 +111,7 @@ def generate_text(platform_type, specific_prompt):
             )
             return response.choices[0].message.content
         except Exception as e:
-            st.error(f"오류가 발생했습니다: {e}")
+            st.error(f"글 생성 중 오류가 발생했습니다: {e}")
             return None
 
 with tab1:
@@ -113,7 +125,7 @@ with tab1:
 with tab2:
     st.subheader("아이디어스 스타일")
     if st.button("🪄 아이디어스용 글 만들기"):
-        instr = "작가님의 제작 스토리와 샘플 어투(ok👭, 좋아요🌻)를 듬뿍 넣어 아주 정성스럽게 길게 써주세요."
+        instr = "작가님의 제작 스토리와 샘플 어투(ok👭, 좋아요🌻)를 적극 반영하고, 패치워크의 가치와 제작 스토리를 상세히 풀어내세요."
         result = generate_text("아이디어스", instr)
         if result:
             st.text_area("아이디어스 결과", value=result, height=600)
