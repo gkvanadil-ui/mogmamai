@@ -3,10 +3,10 @@ import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 import openai
 
-# 1. 페이지 설정 (가장 먼저 실행되어야 합니다)
+# 1. 페이지 설정 (반드시 코드의 최상단에 위치해야 함)
 st.set_page_config(page_title="모그 AI 비서", layout="centered", page_icon="🌸")
 
-# --- ✨ UI/UX: 엄마를 위한 따뜻하고 큰 글씨 스타일 ---
+# --- ✨ UI/UX: 스타일 설정 ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;700&display=swap');
@@ -31,18 +31,18 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 필수 연결 설정
+# 2. API 키 및 구글 시트 연결 설정
 api_key = st.secrets.get("OPENAI_API_KEY")
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# 3. 데이터 보관함(세션 상태) 초기화
+# 3. 세션 상태 초기화 (데이터 저장 공간)
 if 'texts' not in st.session_state: st.session_state.texts = {"인스타": "", "아이디어스": "", "스토어": ""}
 if 'refined' not in st.session_state: st.session_state.refined = {"인스타": "", "아이디어스": "", "스토어": ""}
 if 'chat_history' not in st.session_state: st.session_state.chat_history = []
 if 'name' not in st.session_state: st.session_state.name = ""
 if 'keys' not in st.session_state: st.session_state.keys = ""
 
-# --- [도우미 함수들] ---
+# --- [도우미 함수 정의] ---
 def process_mog_ai(guide):
     if not api_key: return "API 키를 확인해주세요🌸"
     client = openai.OpenAI(api_key=api_key)
@@ -62,11 +62,11 @@ def load_gs_data():
     try: return conn.read(ttl=0)
     except: return pd.DataFrame(columns=["name", "keys"])
 
-# --- 4. 메인 화면 구성 ---
+# --- 4. 메인 화면 출력 시작 ---
 st.title("🌸 모그 작가님 AI 비서")
 st.write("### 오늘도 정성 가득한 하루 보내셔요 작가님! ✨")
 
-# [1구역] 정보 입력 (공통 정보)
+# [1구역] 정보 입력 (여기서 입력한 값이 모든 탭에서 쓰입니다)
 with st.container():
     st.header("1️⃣ 어떤 작품인가요?")
     st.session_state.name = st.text_input("📦 작품 이름", value=st.session_state.name, placeholder="예: 빈티지 튤립 파우치")
@@ -74,39 +74,37 @@ with st.container():
 
 st.divider()
 
-# ⭐⭐⭐ [핵심] 탭을 여기서 먼저 정의합니다! ⭐⭐⭐
+# ⭐⭐⭐ [핵심 수정] 여기서 tabs 변수를 먼저 선언합니다! ⭐⭐⭐
+# 이 줄이 나타나기 전까지는 tabs[0], tabs[1] 등을 호출하면 에러가 납니다.
 tabs = st.tabs(["✍️ 판매글 쓰기", "📸 사진 보정법", "💬 고민 상담소", "📂 영구 작품 창고"])
 
-# --- Tab 1: 판매글 쓰기 ---
+# --- Tab 1: 판매글 쓰기 (첫 번째 탭) ---
 with tabs[0]:
     st.write("#### 💡 버튼을 누르면 작가님 말투로 글이 써집니다.")
     c1, c2, c3 = st.columns(3)
-    if c1.button("📸 인스타그램"):
+    if c1.button("📸 인스타그램", key="btn_insta"):
         st.session_state.texts["인스타"] = process_mog_ai({"name": "인스타그램", "desc": "감성 일기 스타일, 해시태그 포함"})
-        st.session_state.refined["인스타"] = ""
-    if c2.button("🎨 아이디어스"):
+    if c2.button("🎨 아이디어스", key="btn_idus"):
         st.session_state.texts["아이디어스"] = process_mog_ai({"name": "아이디어스", "desc": "정성을 강조하는 스타일"})
-        st.session_state.refined["아이디어스"] = ""
-    if c3.button("🛍️ 스토어"):
+    if c3.button("🛍️ 스토어", key="btn_store"):
         st.session_state.texts["스토어"] = process_mog_ai({"name": "스마트스토어", "desc": "다정한 정보 안내"})
-        st.session_state.refined["스토어"] = ""
 
     for k in ["인스타", "아이디어스", "스토어"]:
         if st.session_state.texts.get(k):
             st.info(f"📍 {k} 첫 번째 글")
             st.text_area(f"{k} 원본", value=st.session_state.texts[k], height=200, key=f"orig_{k}")
             with st.expander("✨ 글을 다르게 고쳐볼까요?"):
-                feed = st.text_input("요청사항", key=f"f_{k}")
-                if st.button("♻️ 다시 정성껏 쓰기", key=f"re_{k}"):
+                feed = st.text_input("요청사항", key=f"input_f_{k}")
+                if st.button("♻️ 다시 정성껏 쓰기", key=f"refine_{k}"):
                     st.session_state.refined[k] = process_mog_ai({"name": k, "desc": f"원래 글: {st.session_state.texts[k]}\n요청: {feed}"})
                     st.rerun()
             if st.session_state.refined.get(k):
                 st.success("✨ 새로 작성한 글입니다!")
-                st.text_area(f"{k} 수정본", value=st.session_state.refined[k], height=250, key=f"new_{k}")
+                st.text_area(f"{k} 수정본", value=st.session_state.refined[k], height=250, key=f"new_text_{k}")
 
-# --- Tab 2: 사진 보정법 ---
+# --- Tab 2: 사진 보정법 (두 번째 탭) ---
 with tabs[1]:
-    st.header("📸 사진 보정, 이것만 기억하세요!")
+    st.header("📸 사진 보정법")
     st.info("엄마! 버튼 하나로 사진이 화사해지는 방법이에요🌸")
     col_a, col_b = st.columns(2)
     with col_a:
@@ -115,7 +113,7 @@ with tabs[1]:
         st.markdown("#### 🪄 포토(Fotor) AI\n- 조명을 알아서 켜줘요.\n- **[AI 원클릭 보정]** 클릭!")
         st.link_button("👉 포토 사이트 바로가기", "https://www.fotor.com/kr/photo-editor-app/editor/basic")
 
-# --- Tab 3: 고민 상담소 ---
+# --- Tab 3: 고민 상담소 (세 번째 탭) ---
 with tabs[2]:
     st.header("💬 모그 작가님 전용 상담소")
     for m in st.session_state.chat_history:
@@ -129,21 +127,16 @@ with tabs[2]:
             st.write(pr)
         with st.chat_message("assistant", avatar="🕯️"):
             with st.spinner("생각 중이지요..."):
-                ans = process_mog_ai({"name": "상담소", "desc": f"이전 대화 맥락을 기억하고 현실적인 조언 제공. 질문: {pr}"})
+                ans = process_mog_ai({"name": "상담소", "desc": f"현실적 조언 제공. 질문: {pr}"})
                 st.write(ans)
                 st.session_state.chat_history.append({"role": "assistant", "content": ans})
                 st.rerun()
-    if st.button("♻️ 대화 지우기"):
-        st.session_state.chat_history = []
-        st.rerun()
 
-# --- Tab 4: 영구 작품 창고 (구글 시트 연동) ---
+# --- Tab 4: 영구 작품 창고 (네 번째 탭) ---
 with tabs[3]:
-    st.header("📂 나의 영구 작품 창고")
-    st.write("여기 저장하면 컴퓨터를 꺼도 정보가 남아요 🕯️")
+    st.header("📂 영구 작품 창고")
     df = load_gs_data()
-
-    if st.button("✨ 지금 정보를 구글 시트에 저장하기"):
+    if st.button("✨ 지금 정보를 구글 시트에 저장하기", key="btn_save_gs"):
         if st.session_state.name:
             new_row = pd.DataFrame([{"name": st.session_state.name, "keys": st.session_state.keys}])
             if st.session_state.name in df['name'].values:
@@ -154,19 +147,13 @@ with tabs[3]:
             conn.update(data=up_df)
             st.success("창고에 저장되었습니다! 🌸")
             st.rerun()
-        else:
-            st.warning("이름을 적어주세요.")
-
+    
     st.divider()
     if not df.empty:
         for i, row in df.iterrows():
             with st.expander(f"📦 {row['name']}"):
                 st.write(row['keys'])
-                c1, c2 = st.columns(2)
-                if c1.button("📥 불러오기", key=f"gs_l_{i}"):
+                if st.button("📥 불러오기", key=f"gs_load_btn_{i}"):
                     st.session_state.name = row['name']
                     st.session_state.keys = row['keys']
-                    st.rerun()
-                if c2.button("🗑️ 삭제", key=f"gs_d_{i}"):
-                    conn.update(data=df.drop(i))
                     st.rerun()
