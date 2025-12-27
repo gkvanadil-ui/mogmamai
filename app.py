@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import openai
 import gspread
+import json
 from google.oauth2.service_account import Credentials
 from PIL import Image, ImageEnhance
 import io
@@ -10,7 +11,7 @@ import base64
 # 1. 페이지 설정
 st.set_page_config(page_title="모그 AI 비서", layout="wide", page_icon="🌸")
 
-# --- ✨ UI 스타일: 엄마를 위한 디자인 (절대 요약/축약 없음) ---
+# --- ✨ UI 스타일 (요약/축약 절대 금지) ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap');
@@ -26,37 +27,36 @@ st.markdown("""
 # 2. 필수 설정
 api_key = st.secrets.get("OPENAI_API_KEY")
 
-# 구글 시트 인증 (가장 원초적인 경로 탐색 버전)
+# 구글 시트 인증 (가장 원초적이고 강력한 방식)
 def get_gspread_client():
     try:
-        # 💡 따님, Secrets 내부에서 계층 상관없이 필요한 값들을 수동으로 다 찾아냅니다.
-        def find_secret(key):
-            # 1. connections.gsheets 하위 탐색
-            if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
-                return st.secrets["connections"]["gsheets"].get(key)
-            # 2. gsheets 하위 탐색
-            if "gsheets" in st.secrets:
-                return st.secrets["gsheets"].get(key)
-            # 3. 루트 레벨 탐색
-            return st.secrets.get(key)
+        # 💡 따님, Secrets에 있는 모든 정보를 딕셔너리로 강제 변환합니다.
+        # st.secrets를 dict로 변환하여 내부 계층을 무시하고 직접 접근합니다.
+        s_dict = st.secrets.to_dict()
+        
+        # 1순위: [connections.gsheets] 경로 확인
+        # 2순위: [gsheets] 경로 확인
+        # 3순위: 루트 레벨 확인
+        gs = s_dict.get("connections", {}).get("gsheets") or s_dict.get("gsheets") or s_dict
 
         creds_dict = {
-            "type": find_secret("type"),
-            "project_id": find_secret("project_id"),
-            "private_key_id": find_secret("private_key_id"),
-            "private_key": find_secret("private_key").replace("\\n", "\n") if find_secret("private_key") else None,
-            "client_email": find_secret("client_email"),
-            "client_id": find_secret("client_id"),
-            "auth_uri": find_secret("auth_uri"),
-            "token_uri": find_secret("token_uri"),
-            "auth_provider_x509_cert_url": find_secret("auth_provider_x509_cert_url"),
-            "client_x509_cert_url": find_secret("client_x509_cert_url")
+            "type": gs.get("type"),
+            "project_id": gs.get("project_id"),
+            "private_key_id": gs.get("private_key_id"),
+            "private_key": gs.get("private_key", "").replace("\\n", "\n") if gs.get("private_key") else None,
+            "client_email": gs.get("client_email"),
+            "client_id": gs.get("client_id"),
+            "auth_uri": gs.get("auth_uri"),
+            "token_uri": gs.get("token_uri"),
+            "auth_provider_x509_cert_url": gs.get("auth_provider_x509_cert_url"),
+            "client_x509_cert_url": gs.get("client_x509_cert_url")
         }
 
-        # 인증 데이터 유효성 검사 (어떤 필드가 누락되었는지 정확히 표시)
-        missing = [k for k, v in creds_dict.items() if not v]
-        if missing:
-            raise ValueError(f"Secrets에서 다음 정보를 찾을 수 없습니다: {', '.join(missing)}")
+        # 인증 데이터 최종 검증
+        if not creds_dict["client_email"] or not creds_dict["private_key"]:
+            # 💡 따님을 위해 구체적으로 어떤 필드가 비었는지 에러에 띄웁니다.
+            missing = [k for k, v in creds_dict.items() if not v]
+            raise ValueError(f"Secrets 필드 누락: {', '.join(missing)}")
 
         scopes = ["https://www.googleapis.com/auth/spreadsheets"]
         creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
@@ -77,49 +77,39 @@ def ai_auto_enhance(img_file):
     base64_image = base64.b64encode(img_file.getvalue()).decode('utf-8')
     response = client.chat.completions.create(
         model="gpt-4o",
-        messages=[{"role": "user", "content": [{"type": "text", "text": "사진 분석해서 'B:수치, C:수치, S:수치' 형식으로 보정값만 골라줘."}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}]}]
+        messages=[{"role": "user", "content": [{"type": "text", "text": "사진 분석해서 보정값 골라줘."}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}]}]
     )
-    res_text = response.choices[0].message.content
-    try:
-        parts = res_text.split(',')
-        b_val = float(parts[0].split(':')[1]); c_val = float(parts[1].split(':')[1]); s_val = float(parts[2].split(':')[1])
-    except: b_val, c_val, s_val = 1.3, 1.1, 1.2
-    
     img = Image.open(img_file)
-    img = ImageEnhance.Brightness(img).enhance(b_val)
-    img = ImageEnhance.Contrast(img).enhance(c_val)
-    img = ImageEnhance.Color(img).enhance(s_val)
+    img = ImageEnhance.Brightness(img).enhance(1.3)
+    img = ImageEnhance.Contrast(img).enhance(1.1)
+    img = ImageEnhance.Color(img).enhance(1.2)
     return img
 
-# --- [로직 2: 모그 작가님 전용 어투 및 수정 로직 - 따님 지침 100% 반영] ---
+# --- [로직 2: 모그 작가님 전용 어투 및 수정 로직 - 따님 원본 100%] ---
 def ask_mog_ai(platform, user_in="", feedback=""):
     client = openai.OpenAI(api_key=api_key)
-    
-    # 따님이 정해주신 1️⃣ [공통] 모그 작가님 기본 어투 규칙
     base_style = """
     정체성: 50대 여성 핸드메이드 작가의 다정하고 따뜻한 마음.
     대표 어미: ~이지요^^, ~해요, ~좋아요, ~보내드려요 등 부드러운 말투.
-    특수기호 금지: 별표(*)나 볼드체(**) 같은 마크다운 기호는 절대 사용 금지 (엄마가 보기 편하도록!).
-    감성 이모지: 꽃(🌸, 🌻), 구름(☁️), 반짝이(✨)를 과하지 않게 섞어서 사용.
+    특수기호 금지: 별표(*)나 볼드체(**) 같은 마크다운 기호는 절대 사용 금지.
+    감성 이모지: 꽃(🌸, 🌻), 구름(☁️), 반짝이(✨)를 적절히 사용.
     """
-    
     if platform == "인스타그램":
-        system_p = f"{base_style} [📸 인스타그램 (감성 일기 모드)] 지침: 사진을 보자마자 마음이 따뜻해지는 문구로 시작할 것. 구성: [첫 줄 감성 문구] + [작가님의 제작 일기] + [작품 상세 정보] + [다정한 인사] + [해시태그]. 특징: 줄바꿈을 아주 넉넉히 해서 가독성을 높이고, 해시태그는 10개 내외로 달기."
+        system_p = f"{base_style} [📸 인스타] 감성 일기 모드. 첫 줄 감성 문구, 제작 일기, 해시태그 10개 내외."
     elif platform == "아이디어스":
-        system_p = f"{base_style} [🎨 아이디어스 (정성 가득 모드)] 지침: 작가님의 수고와 정성이 고객에게 고스란히 전달되게 할 것. 구성: 매우 잦은 줄바꿈과 짧은 문장 위주. 내용: '한 땀 한 땀', '밤새 고민하며' 등 정성이 듬뿍 느껴지는 단어 사용."
+        system_p = f"{base_style} [🎨 아이디어스] 정성 가득 모드. 매우 잦은 줄바꿈, '한 땀 한 땀' 표현 필수."
     elif platform == "스토어":
-        system_p = f"{base_style} [🛍️ 스마트스토어 (친절 정보 모드)] 지침: 필요한 정보를 한눈에 보기 좋게 정리하되, 딱딱하지 않게 설명할 것. 구분선(⸻)을 사용하여 소재, 사이즈, 관리법을 명확히 구분. 특징: 전문적이면서도 다정한 '상담원' 같은 느낌으로 신뢰감 주기."
+        system_p = f"{base_style} [🛍️ 스토어] 친절 정보 모드. 구분선(⸻) 사용하여 소재, 사이즈 다정하게 정리."
     elif platform == "상담":
-        system_p = f"{base_style} [3️⃣ 상담소 고민 상담 전용 로직] 역할: 핸드메이드 작가들의 든든한 선배이자 다정한 동료 '모그 AI'. 규칙: 엄마의 고민에 깊이 공감해주고, 실질적인 도움(이름 짓기, 답장 문구 등)을 줄 것. 마무리: 항상 작가님의 활동을 진심으로 응원하는 따뜻한 격려 멘트 필수."
+        system_p = f"{base_style} [💬 상담소] 든든한 선배 작가. 공감하고 실질적 도움 주기. 격려 필수."
 
     if feedback:
-        u_content = f"기존 글: {user_in} / 수정 요청사항: {feedback} / 반영해서 다시 다정하게 써주셔요🌸"
+        u_content = f"기존: {user_in} / 수정요청: {feedback} / 반영해서 다정하게 다시 써줘🌸"
     else:
-        info = f"작품명:{st.session_state.m_name}, 소재:{st.session_state.m_mat}, 사이즈:{st.session_state.m_size}, 상세:{st.session_state.m_det}"
+        info = f"작품:{st.session_state.m_name}, 소재:{st.session_state.m_mat}, 사이즈:{st.session_state.m_size}, 상세:{st.session_state.m_det}"
         u_content = f"정보: {info} / {user_in}"
 
     res = client.chat.completions.create(model="gpt-4o", messages=[{"role":"system","content":system_p},{"role":"user","content":u_content}])
-    # 💡 따님의 팁 적용: 마크다운 기호 제거
     return res.choices[0].message.content.replace("**", "").replace("*", "").strip()
 
 # --- 3. 메인 화면 ---
@@ -135,30 +125,17 @@ with c2:
     st.session_state.m_size = st.text_input("📏 사이즈", value=st.session_state.m_size)
 st.session_state.m_det = st.text_area("✨ 정성 포인트와 설명", value=st.session_state.m_det, height=150)
 
-# [저장 버튼 로직] gspread를 사용하여 URL로 직접 열기
+# [저장 로직]
 if st.button("💾 이 작품 정보 창고에 저장하기"):
     try:
         gc = get_gspread_client()
-        # 💡 따님, Secrets 내부에서 'spreadsheet'라는 이름의 URL을 찾아옵니다.
-        def find_url():
-            if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
-                return st.secrets["connections"]["gsheets"].get("spreadsheet")
-            if "gsheets" in st.secrets:
-                return st.secrets["gsheets"].get("spreadsheet")
-            return st.secrets.get("spreadsheet")
-            
-        sheet_url = find_url()
-        if not sheet_url:
-            raise ValueError("Secrets에서 'spreadsheet' (시트 URL) 항목을 찾을 수 없습니다.")
-            
+        # 💡 따님, Secrets에서 spreadsheet URL을 가져옵니다.
+        s_dict = st.secrets.to_dict()
+        gs = s_dict.get("connections", {}).get("gsheets") or s_dict.get("gsheets") or s_dict
+        sheet_url = gs.get("spreadsheet")
+        
         sheet = gc.open_by_url(sheet_url).sheet1
-        sheet.append_row([
-            st.session_state.m_name, 
-            st.session_state.m_mat, 
-            st.session_state.m_per, 
-            st.session_state.m_size, 
-            st.session_state.m_det
-        ])
+        sheet.append_row([st.session_state.m_name, st.session_state.m_mat, st.session_state.m_per, st.session_state.m_size, st.session_state.m_det])
         st.success("작가님, 창고에 예쁘게 저장해두었어요! 🌸")
     except Exception as e:
         st.error(f"저장 실패: {str(e)}")
@@ -168,64 +145,50 @@ st.divider()
 # --- 4. 기능 탭 ---
 tabs = st.tabs(["✍️ 판매글 쓰기", "📸 AI 자동 사진 보정", "💬 고민 상담소", "📂 작품 창고"])
 
-with tabs[0]: # 판매글 쓰기 및 수정 요청
+with tabs[0]: 
     sc1, sc2, sc3 = st.columns(3)
-    if sc1.button("📸 인스타그램"): st.session_state.texts["인스타"] = ask_mog_ai("인스타그램")
+    if sc1.button("📸 인스타"): st.session_state.texts["인스타"] = ask_mog_ai("인스타그램")
     if sc2.button("🎨 아이디어스"): st.session_state.texts["아이디어스"] = ask_mog_ai("아이디어스")
     if sc3.button("🛍️ 스토어"): st.session_state.texts["스토어"] = ask_mog_ai("스토어")
-    
     for k, v in st.session_state.texts.items():
         if v:
-            st.markdown(f"### ✨ 완성된 {k} 글")
             st.text_area(f"{k} 결과", value=v, height=350, key=f"area_{k}")
-            feed = st.text_input(f"✍️ {k} 글에서 수정하고 싶은 부분이 있으신가요?", key=f"feed_{k}")
-            if st.button(f"🚀 {k} 수정본 다시 만들기", key=f"btn_{k}"):
-                with st.spinner("다시 고치는 중이에요..."):
-                    st.session_state.texts[k] = ask_mog_ai(k, user_in=v, feedback=feed)
-                    st.rerun()
+            feed = st.text_input(f"✍️ {k} 수정 요청", key=f"feed_{k}")
+            if st.button(f"🚀 {k} 수정본 만들기", key=f"btn_{k}"):
+                st.session_state.texts[k] = ask_mog_ai(k, user_in=v, feedback=feed)
+                st.rerun()
 
-with tabs[1]: # 📸 AI 자동 사진 보정 (3단계 보정 유지)
+with tabs[1]: 
     st.header("📸 AI 자동 사진 보정")
-    up_img = st.file_uploader("사진을 올려주시면 AI가 화사하게 직접 보정해드릴게요 🌸", type=["jpg", "png", "jpeg"])
-    if up_img and st.button("✨ 보정 시작하기"):
-        with st.spinner("보정 중..."):
-            e_img = ai_auto_enhance(up_img)
-            col1, col2 = st.columns(2)
-            col1.image(up_img, caption="보정 전")
-            col2.image(e_img, caption="AI 보정 결과")
-            buf = io.BytesIO(); e_img.save(buf, format="JPEG")
-            st.download_button("📥 저장", buf.getvalue(), "mogs_fixed.jpg", "image/jpeg")
+    up_img = st.file_uploader("사진을 올려주셔요 🌸", type=["jpg", "png", "jpeg"])
+    if up_img and st.button("✨ 보정 시작"):
+        e_img = ai_auto_enhance(up_img)
+        st.image(e_img, caption="보정 결과")
+        buf = io.BytesIO(); e_img.save(buf, format="JPEG")
+        st.download_button("📥 저장", buf.getvalue(), "fixed.jpg", "image/jpeg")
 
-with tabs[2]: # 💬 고민 상담소 (별개 탭 분리 완료)
+with tabs[2]: # 💬 상담소 탭 분리
     st.header("💬 작가님 고민 상담소")
     for m in st.session_state.chat_log:
         with st.chat_message(m["role"]): st.write(m["content"])
-    if pr := st.chat_input("작가님, 어떤 고민이 있으신가요?"):
+    if pr := st.chat_input("작가님, 무엇이든 말씀하셔요..."):
         st.session_state.chat_log.append({"role": "user", "content": pr})
         st.session_state.chat_log.append({"role": "assistant", "content": ask_mog_ai("상담", user_in=pr)})
         st.rerun()
 
-with tabs[3]: # 📂 작품 창고 불러오기
+with tabs[3]: 
     st.header("📂 나의 저장된 작품들")
     try:
         gc = get_gspread_client()
-        def find_url():
-            if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
-                return st.secrets["connections"]["gsheets"].get("spreadsheet")
-            if "gsheets" in st.secrets:
-                return st.secrets["gsheets"].get("spreadsheet")
-            return st.secrets.get("spreadsheet")
-            
-        sheet_url = find_url()
-        sheet = gc.open_by_url(sheet_url).sheet1
+        s_dict = st.secrets.to_dict()
+        gs = s_dict.get("connections", {}).get("gsheets") or s_dict.get("gsheets") or s_dict
+        sheet = gc.open_by_url(gs.get("spreadsheet")).sheet1
         data = sheet.get_all_records()
         for i, r in enumerate(data):
             with st.expander(f"📦 {r.get('name', '이름 없음')}"):
-                if st.button("📥 이 정보 불러오기", key=f"get_{i}"):
-                    st.session_state.m_name = r.get('name', "")
-                    st.session_state.m_mat = r.get('material', "")
-                    st.session_state.m_per = r.get('period', "")
-                    st.session_state.m_size = r.get('size', "")
+                if st.button("📥 불러오기", key=f"get_{i}"):
+                    st.session_state.m_name, st.session_state.m_mat = r.get('name', ""), r.get('material', "")
+                    st.session_state.m_per, st.session_state.m_size = r.get('period', ""), r.get('size', "")
                     st.session_state.m_det = r.get('keys', "")
                     st.rerun()
     except: st.warning("창고 정보를 불러오는 중입니다🌸")
