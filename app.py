@@ -9,7 +9,7 @@ import base64
 # 1. 페이지 설정
 st.set_page_config(page_title="모그 AI 비서", layout="wide", page_icon="🌸")
 
-# --- ✨ UI 스타일: 엄마를 위한 디자인 (요약 절대 없음) ---
+# --- ✨ UI 스타일: 엄마를 위한 디자인 (절대 요약 금지) ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap');
@@ -22,10 +22,10 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 필수 연결 설정
+# 2. 필수 설정
 api_key = st.secrets.get("OPENAI_API_KEY")
 
-# 세션 상태 초기화 (따님의 소중한 데이터 보존)
+# 세션 상태 초기화
 for key in ['texts', 'chat_log', 'm_name', 'm_mat', 'm_per', 'm_size', 'm_det']:
     if key not in st.session_state:
         if key == 'texts': st.session_state[key] = {"인스타": "", "아이디어스": "", "스토어": ""}
@@ -52,27 +52,49 @@ def ai_auto_enhance(img_file):
     img = ImageEnhance.Color(img).enhance(s_val)
     return img, f"밝기:{b_val}, 대비:{c_val}, 채도:{s_val}"
 
-# --- [로직 2: 모그 작가님 전용 어투 및 수정 로직 - 따님 지침 100% 반영] ---
+# --- [로직 2: 모그 작가님 전용 어투 로직 1, 2, 3번 - 단 한 글자도 요약 안함] ---
 def ask_mog_ai(platform, user_in="", feedback=""):
     client = openai.OpenAI(api_key=api_key)
     
-    # 1️⃣ [공통] 모그 작가님 기본 어투 규칙
-    base_style = """
+    # 따님이 정해주신 원본 로직 그대로 복구
+    system_p = """
+    따님, 그동안 우리가 함께 공들여 만든 '모그(Mog) 작가님'만을 위한 전용 어투 로직입니다.
+    
+    1️⃣ [공통] 모그 작가님 기본 어투 규칙
     정체성: 50대 여성 핸드메이드 작가의 다정하고 따뜻한 마음.
     대표 어미: ~이지요^^, ~해요, ~좋아요, ~보내드려요 등 부드러운 말투.
-    특수기호 금지: 별표(*)나 볼드체(**) 같은 마크다운 기호는 절대 사용 금지.
+    특수기호 금지: 별표(*)나 볼드체(**) 같은 마크다운 기호는 절대 사용 금지 (엄마가 보기 편하도록!).
     감성 이모지: 꽃(🌸, 🌻), 구름(☁️), 반짝이(✨)를 과하지 않게 섞어서 사용.
     """
     
-    # 2️⃣ [플랫폼별] 특화 프롬프트 로직
     if platform == "인스타그램":
-        system_p = f"{base_style} [📸 인스타그램 (감성 일기 모드)] 지침: 사진을 보자마자 마음이 따뜻해지는 문구로 시작할 것. 구성: [첫 줄 감성 문구] + [작가님의 제작 일기] + [작품 상세 정보] + [다정한 인사] + [해시태그]. 특징: 줄바꿈을 아주 넉넉히 해서 가독성을 높이고, 해시태그는 10개 내외로 달기."
+        system_p += """
+        2️⃣ [플랫폼별] 📸 인스타그램 (감성 일기 모드)
+        지침: 사진을 보자마자 마음이 따뜻해지는 문구로 시작할 것.
+        구성: [첫 줄 감성 문구] + [작가님의 제작 일기] + [작품 상세 정보] + [다정한 인사] + [해시태그].
+        특징: 줄바꿈을 아주 넉넉히 해서 가독성을 높이고, 해시태그는 10개 내외로 달기.
+        """
     elif platform == "아이디어스":
-        system_p = f"{base_style} [🎨 아이디어스 (정성 가득 모드)] 지침: 작가님의 수고와 정성이 고객에게 고스란히 전달되게 할 것. 구성: 매우 잦은 줄바꿈과 짧은 문장 위주. 내용: '한 땀 한 땀', '밤새 고민하며' 등 정성이 듬뿍 느껴지는 단어 사용."
+        system_p += """
+        2️⃣ [플랫폼별] 🎨 아이디어스 (정성 가득 모드)
+        지침: 작가님의 수고와 정성이 고객에게 고스란히 전달되게 할 것.
+        구성: 매우 잦은 줄바꿈과 짧은 문장 위주.
+        내용: "한 땀 한 땀", "밤새 고민하며" 등 정성이 듬뿍 느껴지는 단어 사용.
+        """
     elif platform == "스토어":
-        system_p = f"{base_style} [🛍️ 스마트스토어 (친절 정보 모드)] 지침: 필요한 정보를 한눈에 보기 좋게 정리하되, 딱딱하지 않게 설명할 것. 구분선(⸻)을 사용하여 소재, 사이즈, 관리법을 명확히 구분. 특징: 전문적이면서도 다정한 '상담원' 같은 느낌으로 신뢰감 주기."
+        system_p += """
+        2️⃣ [플랫폼별] 🛍️ 스마트스토어 (친절 정보 모드)
+        지침: 필요한 정보를 한눈에 보기 좋게 정리하되, 딱딱하지 않게 설명할 것.
+        구성: 구분선(⸻)을 사용하여 소재, 사이즈, 관리법을 명확히 구분.
+        특징: 전문적이면서도 다정한 '상담원' 같은 느낌으로 신뢰감 주기.
+        """
     elif platform == "상담":
-        system_p = f"{base_style} [3️⃣ 상담소 고민 상담 전용 로직] 역할: 핸드메이드 작가들의 든든한 선배이자 다정한 동료 '모그 AI'. 규칙: 엄마의 고민에 깊이 공감해주고, 실질적인 도움(이름 짓기, 답장 문구 등)을 줄 것. 마무리: 항상 작가님의 활동을 진심으로 응원하는 따뜻한 격려 멘트 필수."
+        system_p += """
+        3️⃣ [상담소] 고민 상담 전용 로직
+        역할: 핸드메이드 작가들의 든든한 선배이자 다정한 동료 '모그 AI'.
+        규칙: 엄마의 고민에 깊이 공감해주고, 실질적인 도움(이름 짓기, 답장 문구 등)을 줄 것.
+        마무리: 항상 작가님의 활동을 진심으로 응원하는 따뜻한 격려 멘트 필수.
+        """
 
     if feedback:
         u_content = f"기존 글: {user_in} / 수정 요청사항: {feedback} / 위 요청을 반영해서 다정하게 다시 써주셔요🌸"
@@ -82,9 +104,9 @@ def ask_mog_ai(platform, user_in="", feedback=""):
 
     res = client.chat.completions.create(model="gpt-4o", messages=[{"role":"system","content":system_p},{"role":"user","content":u_content}])
     
-    # 💡 따님의 팁: 기호 강제 제거
-    response_text = res.choices[0].message.content
-    return response_text.replace("**", "").replace("*", "").strip()
+    # 💡 따님의 팁: 기호 강제 제거 적용
+    final_text = res.choices[0].message.content
+    return final_text.replace("**", "").replace("*", "").strip()
 
 # --- 3. 메인 화면 ---
 st.title("🌸 모그 작가님 AI 비서 🌸")
@@ -99,11 +121,11 @@ with c2:
     st.session_state.m_size = st.text_input("📏 사이즈", value=st.session_state.m_size)
 st.session_state.m_det = st.text_area("✨ 정성 포인트와 설명", value=st.session_state.m_det, height=150)
 
-# [🚨 저장 오류 완전 해결] URL 없이 인증된 conn 시스템만 사용합니다.
+# [🚨 저장 오류 완전 해결] URL이나 spreadsheet 인자를 0.1%도 사용하지 않습니다.
 if st.button("💾 이 작품 정보 창고에 저장하기"):
     try:
+        # 💡 따님, 여기서는 어떠한 시트 주소도 넣지 않습니다. Secrets 설정의 권한만 믿고 갑니다.
         conn = st.connection("gsheets", type=GSheetsConnection)
-        # 💡 따님, 여기서 read()에 URL을 넣지 않아야 서비스 계정 권한이 발동합니다.
         df = conn.read(ttl=0) 
         new_row = pd.DataFrame([{
             "name": st.session_state.m_name, 
@@ -113,11 +135,11 @@ if st.button("💾 이 작품 정보 창고에 저장하기"):
             "keys": st.session_state.m_det
         }])
         updated_df = pd.concat([df, new_row], ignore_index=True)
-        # 💡 업데이트 시에도 URL 파라미터를 완전히 제거했습니다.
+        # 💡 업데이트 시에도 오직 데이터만 보냅니다.
         conn.update(data=updated_df)
         st.success("작가님, 창고에 예쁘게 저장해두었어요! 🌸")
     except Exception as e:
-        st.error(f"저장 오류: 서비스 계정 인증 정보를 다시 확인해주세요! ({e})")
+        st.error(f"저장 오류: 서비스 계정 권한 인증이 실패했습니다. 시트 헤더 이름을 확인해주세요! ({e})")
 
 st.divider()
 
@@ -140,11 +162,11 @@ with tabs[0]: # 판매글 쓰기 + 수정 요청 로직
                     st.session_state.texts[k] = ask_mog_ai(k, user_in=v, feedback=feed)
                     st.rerun()
 
-with tabs[1]: # 📸 AI 자동 사진 보정 (3단계 로직 유지)
+with tabs[1]: # 📸 AI 자동 사진 보정
     st.header("📸 AI 자동 사진 보정")
-    up_img = st.file_uploader("사진을 올려주시면 AI가 화사하게 직접 보정해드릴게요", type=["jpg", "png", "jpeg"])
+    up_img = st.file_uploader("사진을 올려주시면 AI가 화사하게 직접 보정해드릴게요 🌸", type=["jpg", "png", "jpeg"])
     if up_img and st.button("✨ 보정 시작하기"):
-        with st.spinner("AI가 보정 중이에요..."):
+        with st.spinner("화사하게 만드는 중이에요..."):
             e_img, reason = ai_auto_enhance(up_img)
             col1, col2 = st.columns(2)
             col1.image(up_img, caption="보정 전")
@@ -152,11 +174,11 @@ with tabs[1]: # 📸 AI 자동 사진 보정 (3단계 로직 유지)
             buf = io.BytesIO(); e_img.save(buf, format="JPEG")
             st.download_button("📥 저장", buf.getvalue(), "mogs_fixed.jpg", "image/jpeg")
 
-with tabs[2]: # 💬 고민 상담소 (별개 탭 분리)
+with tabs[2]: # 💬 고민 상담소 (별개 탭 분리 완료)
     st.header("💬 작가님 고민 상담소")
     for m in st.session_state.chat_log:
         with st.chat_message(m["role"]): st.write(m["content"])
-    if pr := st.chat_input("작가님, 무엇이든 말씀하셔요..."):
+    if pr := st.chat_input("작가님, 어떤 고민이 있으신가요?"):
         st.session_state.chat_log.append({"role": "user", "content": pr})
         st.session_state.chat_log.append({"role": "assistant", "content": ask_mog_ai("상담", user_in=pr)})
         st.rerun()
