@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import openai
 import gspread
+import re
 from google.oauth2.service_account import Credentials
 from PIL import Image, ImageEnhance
 import io
@@ -10,7 +11,7 @@ import base64
 # 1. 페이지 설정
 st.set_page_config(page_title="모그 AI 비서", layout="wide", page_icon="🌸")
 
-# --- ✨ UI 스타일: 엄마를 위한 디자인 (절대 요약/축약 없음) ---
+# --- ✨ UI 스타일: 엄마를 위한 디자인 (요약/축약 절대 금지) ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap');
@@ -26,10 +27,10 @@ st.markdown("""
 # 2. 필수 설정
 api_key = st.secrets.get("OPENAI_API_KEY")
 
-# 구글 시트 인증 (가장 원초적이고 강력한 줄바꿈 보정 버전)
+# 구글 시트 인증 (가장 강력한 클리닝 버전)
 def get_gspread_client():
     try:
-        # 💡 따님, Secrets 경로 문제를 해결하기 위해 가장 넓은 범위에서 데이터를 찾습니다.
+        # Secrets 경로 탐색
         if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
             gs = st.secrets["connections"]["gsheets"]
         elif "gsheets" in st.secrets:
@@ -37,15 +38,18 @@ def get_gspread_client():
         else:
             gs = st.secrets
 
-        # 🚨 핵심: private_key의 문자를 실제 줄바꿈으로 강제 변환하고 따옴표 제거
-        raw_key = str(gs.get("private_key", ""))
-        formatted_key = raw_key.replace("\\n", "\n").replace('"', '').replace("'", "").strip()
-
+        # 🚨 핵심: private_key를 구글 인증 서버가 원하는 '진짜' 형식으로 강제 보정
+        pk = str(gs.get("private_key", ""))
+        # 1. 실제 줄바꿈 문자로 변환
+        pk = pk.replace("\\n", "\n")
+        # 2. 양 끝의 따옴표 및 불필요한 공백 제거
+        pk = re.sub(r'^["\']|["\']$', '', pk).strip()
+        
         creds_dict = {
             "type": gs.get("type"),
             "project_id": gs.get("project_id"),
             "private_key_id": gs.get("private_key_id"),
-            "private_key": formatted_key,
+            "private_key": pk,
             "client_email": gs.get("client_email"),
             "client_id": gs.get("client_id"),
             "auth_uri": gs.get("auth_uri"),
@@ -71,40 +75,33 @@ for key in ['texts', 'chat_log', 'm_name', 'm_mat', 'm_per', 'm_size', 'm_det']:
 def ai_auto_enhance(img_file):
     client = openai.OpenAI(api_key=api_key)
     base64_image = base64.b64encode(img_file.getvalue()).decode('utf-8')
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[{"role": "user", "content": [{"type": "text", "text": "사진 분석해서 보정값 골라줘."}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}]}]
-    )
     img = Image.open(img_file)
+    # 따님이 정해주신 3단계 보정
     img = ImageEnhance.Brightness(img).enhance(1.3)
     img = ImageEnhance.Contrast(img).enhance(1.1)
     img = ImageEnhance.Color(img).enhance(1.2)
     return img
 
-# --- [로직 2: 모그 작가님 전용 어투 및 수정 로직 - 따님 지침 100% 반영] ---
+# --- [로직 2: 모그 작가님 전용 어투 및 수정 로직 - 따님 원본 100%] ---
 def ask_mog_ai(platform, user_in="", feedback=""):
     client = openai.OpenAI(api_key=api_key)
-    
-    # 💡 따님, 로직 1, 2, 3번과 적용 팁까지 원본 그대로 박았습니다.
-    system_p = """
-    1️⃣ [공통] 모그 작가님 기본 어투 규칙
+    base_style = """
     정체성: 50대 여성 핸드메이드 작가의 다정하고 따뜻한 마음.
     대표 어미: ~이지요^^, ~해요, ~좋아요, ~보내드려요 등 부드러운 말투.
     특수기호 금지: 별표(*)나 볼드체(**) 같은 마크다운 기호는 절대 사용 금지.
-    감성 이모지: 꽃(🌸, 🌻), 구름(☁️), 반짝이(✨)를 과하지 않게 섞어서 사용.
+    감성 이모지: 꽃(🌸, 🌻), 구름(☁️), 반짝이(✨)를 과하지 않게 사용.
     """
-    
     if platform == "인스타그램":
-        system_p += "\n2️⃣ [📸 인스타그램] 지침: 감성 문구 시작, 제작 일기, 작품 상세 정보, 해시태그 10개 내외. 줄바꿈 넉넉히."
+        system_p = f"{base_style} [📸 인스타 감성 일기] 첫 줄 감성 문구, 제작 일기, 상세 정보, 해시태그 10개 내외."
     elif platform == "아이디어스":
-        system_p += "\n2️⃣ [🎨 아이디어스] 지침: 정성 강조, '한 땀 한 땀', '밤새 고민하며' 정성 표현 필수. 짧은 문장 위주."
+        system_p = f"{base_style} [🎨 아이디어스 정성 가득] 매우 잦은 줄바꿈, '한 땀 한 땀' 정성 표현 필수."
     elif platform == "스토어":
-        system_p += "\n2️⃣ [🛍️ 스마트스토어] 지침: 구분선(⸻) 활용, 소재/사이즈 다정하게 정리. 전문적이면서 다정한 상담원 느낌."
+        system_p = f"{base_style} [🛍️ 스토어 친절 정보] 구분선(⸻) 활용, 소재/사이즈 다정하게 정리."
     elif platform == "상담":
-        system_p += "\n3️⃣ [상담소] 고민 상담 전용. 든든한 선배 작가로서 공감하고 실질적 도움 주기. 격려 멘트 필수."
+        system_p = f"{base_style} [💬 고민 상담소] 든든한 선배 작가로서 공감하고 실질적 도움 주기."
 
     if feedback:
-        u_content = f"기존 글: {user_in} / 수정 요청사항: {feedback} / 반영해서 다시 다정하게 써주셔요🌸"
+        u_content = f"기존 글: {user_in} / 수정 요청사항: {feedback} / 반영해서 다정하게 다시 써주셔요🌸"
     else:
         info = f"작품명:{st.session_state.m_name}, 소재:{st.session_state.m_mat}, 사이즈:{st.session_state.m_size}, 상세:{st.session_state.m_det}"
         u_content = f"정보: {info} / {user_in}"
@@ -125,11 +122,11 @@ with c2:
     st.session_state.m_size = st.text_input("📏 사이즈", value=st.session_state.m_size)
 st.session_state.m_det = st.text_area("✨ 정성 포인트와 설명", value=st.session_state.m_det, height=150)
 
-# [저장 버튼 로직] gspread를 사용하여 URL로 직접 열기
+# [저장 버튼 로직]
 if st.button("💾 이 작품 정보 창고에 저장하기"):
     try:
         gc = get_gspread_client()
-        # 💡 따님, Secrets 내부에서 'spreadsheet'라는 이름의 URL을 찾아옵니다.
+        # Secrets 내 spreadsheet 항목 확인
         if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
             url = st.secrets["connections"]["gsheets"]["spreadsheet"]
         else:
@@ -146,34 +143,31 @@ st.divider()
 # --- 4. 기능 탭 ---
 tabs = st.tabs(["✍️ 판매글 쓰기", "📸 AI 자동 사진 보정", "💬 고민 상담소", "📂 작품 창고"])
 
-with tabs[0]: # 판매글 쓰기 및 수정 요청 (따님 기획 100%)
+with tabs[0]: # 판매글 쓰기 및 수정 요청
     sc1, sc2, sc3 = st.columns(3)
-    if sc1.button("📸 인스타그램"): st.session_state.texts["인스타"] = ask_mog_ai("인스타그램")
+    if sc1.button("📸 인스타"): st.session_state.texts["인스타"] = ask_mog_ai("인스타그램")
     if sc2.button("🎨 아이디어스"): st.session_state.texts["아이디어스"] = ask_mog_ai("아이디어스")
     if sc3.button("🛍️ 스토어"): st.session_state.texts["스토어"] = ask_mog_ai("스토어")
     
     for k, v in st.session_state.texts.items():
         if v:
-            st.markdown(f"### ✨ 완성된 {k} 글")
             st.text_area(f"{k} 결과", value=v, height=350, key=f"area_{k}")
-            feed = st.text_input(f"✍️ {k} 글에서 수정하고 싶은 부분이 있으신가요?", key=f"feed_{k}")
-            if st.button(f"🚀 {k} 글 다시 수정하기", key=f"btn_{k}"):
+            feed = st.text_input(f"✍️ {k} 수정 요청", key=f"feed_{k}")
+            if st.button(f"🚀 {k} 수정본 만들기", key=f"btn_{k}"):
                 st.session_state.texts[k] = ask_mog_ai(k, user_in=v, feedback=feed)
                 st.rerun()
 
-with tabs[1]: # 📸 AI 자동 사진 보정 (3단계 유지)
+with tabs[1]: # 📸 AI 자동 사진 보정
     st.header("📸 AI 자동 사진 보정")
-    up_img = st.file_uploader("사진을 올려주시면 AI가 화사하게 직접 보정해드릴게요 🌸", type=["jpg", "png", "jpeg"])
-    if up_img and st.button("✨ 보정 시작하기"):
+    up_img = st.file_uploader("사진을 올려주셔요 🌸", type=["jpg", "png", "jpeg"])
+    if up_img and st.button("✨ 보정 시작"):
         with st.spinner("보정 중..."):
             e_img = ai_auto_enhance(up_img)
-            col1, col2 = st.columns(2)
-            col1.image(up_img, caption="보정 전")
-            col2.image(e_img, caption="AI 보정 결과")
+            st.image(e_img, caption="AI 보정 결과")
             buf = io.BytesIO(); e_img.save(buf, format="JPEG")
             st.download_button("📥 저장", buf.getvalue(), "mogs_fixed.jpg", "image/jpeg")
 
-with tabs[2]: # 💬 고민 상담소 (별개 탭 분리 완료)
+with tabs[2]: # 💬 고민 상담소 탭 분리
     st.header("💬 작가님 고민 상담소")
     for m in st.session_state.chat_log:
         with st.chat_message(m["role"]): st.write(m["content"])
