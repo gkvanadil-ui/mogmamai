@@ -23,7 +23,7 @@ st.markdown("""
 # 2. 필수 설정
 api_key = st.secrets.get("OPENAI_API_KEY")
 
-# 세션 상태 초기화 (데이터 휘발 방지)
+# 세션 상태 초기화
 for key in ['texts', 'chat_log', 'm_name', 'm_mat', 'm_per', 'm_size', 'm_det']:
     if key not in st.session_state:
         if key == 'texts': st.session_state[key] = {"인스타": "", "아이디어스": "", "스토어": ""}
@@ -50,7 +50,7 @@ def ask_mog_ai(platform, user_in="", feedback=""):
     - 당신은 핸드메이드 작가 '모그(Mog)' 본인입니다.
     - AI 비서 같은 멘트("작가님의 글입니다", "정보를 바탕으로 작성합니다" 등)는 절대 금지합니다.
     - 모든 문장은 "내가", "나의 마음은" 등 작가 본인이 직접 쓰는 일기/에세이 형식입니다.
-    - 특수기호 금지: 볼드(**)나 별표(*) 기호는 엄마가 읽기 힘들니 절대 사용하지 마세요.
+    - 특수기호 금지: 볼드(**)나 별표(*) 기호는 엄마가 읽기 힘드니 절대 사용하지 마세요.
     - 어미: ~이지요^^, ~해요, ~좋아요, ~보내드려요 등 50대 여성 작가의 다정한 말투 유지.
     """
     
@@ -59,7 +59,7 @@ def ask_mog_ai(platform, user_in="", feedback=""):
         [📸 인스타그램] 지침: 감성 인사, 제작 일기, 작품 정보, 해시태그 10개 내외. 줄바꿈 넉넉히."""
     
     elif platform == "아이디어스":
-        # 🚨 여기서 따옴표 세 개(f\"\"\")를 써서 SyntaxError를 고쳤습니다.
+        # 🚨 여기서 따옴표 세 개(f\"\"\")를 써서 SyntaxError를 완벽히 고쳤습니다.
         system_p = f"""{base_style} 
         [🎨 아이디어스 신규 포맷] 지침: 아래 형식을 엄격히 준수하여 아주 상세하게 에세이처럼 작성하세요. 절대 내용을 축약하지 마세요.
         
@@ -67,8 +67,8 @@ def ask_mog_ai(platform, user_in="", feedback=""):
         2. 소개: 오늘은 [작품명]을 소개해드려요. (감성적인 제작 동기와 마음 서술)
         3. 구분선: ☘🌱🌿🌳🌴🌵🍃🌱 (이모티콘 한 줄)
         4. 특징 서술: 소재의 조화, 내추럴함, 튼튼한 바느질 등 나의 정성 강조 ("세탁기 쌩쌩 돌리셔도 말짱해요" 등 구어체 사용)
-        5. 💡 상세설명 섹션: 상품명, 구성, 사이즈, 소재 기재
-        6. 🍀 Add info. 섹션: 사용 편의성(지퍼 등), 피부 친화적 특징 등 상세 서술
+        5. 💡 상세설명 섹션: 0.상품명, 1.기본구성, 2.사이즈, 3.소재 기재
+        6. 🍀 Add info. 섹션: 1.사용 편의성(지퍼 등), 2.피부 친화적 특징 등 상세 서술
         7. 🔉 안내 섹션: 주문 제작 기간(2~14일), 취소/환불 규정 안내
         8. 👍🏻 작가보증: 모그에서 직접 디자인, 제작, 검수, 출고함을 강조하며 다정하게 마무리."""
         
@@ -121,7 +121,7 @@ st.divider()
 # --- 4. 기능 탭 ---
 tabs = st.tabs(["✍️ 판매글 쓰기", "📸 AI 자동 사진 보정", "💬 고민 상담소"])
 
-with tabs[0]: # 판매글 쓰기 및 수정 요청 로직
+with tabs[0]: 
     sc1, sc2, sc3 = st.columns(3)
     if sc1.button("📸 인스타그램"): st.session_state.texts["인스타"] = ask_mog_ai("인스타그램")
     if sc2.button("🎨 아이디어스"): st.session_state.texts["아이디어스"] = ask_mog_ai("아이디어스")
@@ -132,14 +132,13 @@ with tabs[0]: # 판매글 쓰기 및 수정 요청 로직
             st.markdown(f"### ✨ 완성된 {k} 글이 완성되었어요^^")
             st.text_area(f"{k} 결과", value=v, height=600, key=f"area_{k}")
             
-            # 💡 [수정 요청 로직] 글 바로 밑에 배치
             feed = st.text_input(f"✍️ {k} 글에서 수정하고 싶은 부분이 있으신가요?", key=f"feed_{k}")
             if st.button(f"🚀 {k} 글 다시 수정하기", key=f"btn_{k}"):
                 with st.spinner("작가님의 마음을 담아 다시 고치는 중이에요..."):
                     st.session_state.texts[k] = ask_mog_ai(k, user_in=v, feedback=feed)
                     st.rerun()
 
-with tabs[1]: # 📸 AI 자동 사진 보정
+with tabs[1]: 
     st.header("📸 AI 자동 사진 보정")
     up_img = st.file_uploader("사진을 올려주시면 AI가 화사하게 직접 보정해드릴게요 🌸", type=["jpg", "png", "jpeg"])
     if up_img and st.button("✨ 보정 시작하기"):
@@ -151,7 +150,7 @@ with tabs[1]: # 📸 AI 자동 사진 보정
             buf = io.BytesIO(); e_img.save(buf, format="JPEG")
             st.download_button("📥 보정된 사진 저장하기", buf.getvalue(), "mogs_fixed.jpg", "image/jpeg")
 
-with tabs[2]: # 💬 고민 상담소
+with tabs[2]: 
     st.header("💬 작가님 고민 상담소")
     for m in st.session_state.chat_log:
         with st.chat_message(m["role"]): st.write(m["content"])
