@@ -21,8 +21,18 @@ try:
         cookie_name="mom_ai_login_cookie"
     )
 except Exception as e:
-    st.error(f"로그인 모듈 초기화 에러: {e}")
-    st.stop()
+    # 혹시 환경에 따라 구버전이 설치되어 있을 경우를 대비한 2중 방어
+    try:
+        auth = Authenticate(
+            secret_key=st.secrets.get("AUTH_SECRET_KEY", "mog_secret_key_default"),
+            client_id=st.secrets["GOOGLE_CLIENT_ID"],
+            client_secret=st.secrets["GOOGLE_CLIENT_SECRET"],
+            redirect_uri=st.secrets["REDIRECT_URI"],
+            cookie_name="mom_ai_login_cookie"
+        )
+    except Exception as e2:
+        st.error(f"로그인 모듈 초기화 에러: {e2}")
+        st.stop()
 
 # 🔑 로그인 체크
 auth.check_authentification()
