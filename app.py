@@ -7,20 +7,25 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 from streamlit_google_auth import Authenticate
 
-# 1. 페이지 설정 및 로그인 체크 (최상단)
+# 1. 페이지 설정 (최상단 고정)
 st.set_page_config(page_title="모그 AI 비서", layout="wide", page_icon="🌸")
 
-auth = Authenticate(
-    secret_key=st.secrets.get("AUTH_SECRET_KEY", "mog_secret_key_123"),
-    client_id=st.secrets.get("GOOGLE_CLIENT_ID"),
-    client_secret=st.secrets.get("GOOGLE_CLIENT_SECRET"),
-    redirect_uri=st.secrets.get("REDIRECT_URI"),
-    cookie_name="mom_ai_login"
-)
+# --- 🔐 구글 로그인 설정 ---
+try:
+    auth = Authenticate(
+        client_id=st.secrets["GOOGLE_CLIENT_ID"],
+        client_secret=st.secrets["GOOGLE_CLIENT_SECRET"],
+        redirect_uri=st.secrets["REDIRECT_URI"],
+        cookie_name="mom_ai_login_cookie",
+        key="mom_ai_auth_key" 
+    )
+except Exception as e:
+    st.error(f"로그인 설정 에러: {e}")
+    st.stop()
 
 auth.check_authentification()
 
-# 로그인 안 됐을 때 화면
+# 로그인 전 화면
 if not st.session_state.get('connected'):
     st.markdown("<h1 style='text-align: center; color: #8D6E63;'>🌸 모그 작가님 AI 비서 🌸</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; font-size: 20px;'>작가님, 안전한 기록 저장을 위해 로그인이 필요해요^^</p>", unsafe_allow_html=True)
@@ -29,16 +34,17 @@ if not st.session_state.get('connected'):
         auth.login()
     st.stop()
 
-# --- 로그인 성공 후 로직 ---
+# --- 🔑 로그인 성공 후 로직 ---
 user_id = st.session_state['user_info'].get('email', 'mom_mog_01')
 
 # Firebase 초기화
 if not firebase_admin._apps:
     try:
-        cred = credentials.Certificate(dict(st.secrets["FIREBASE_SERVICE_ACCOUNT"]))
+        firebase_info = st.secrets["FIREBASE_SERVICE_ACCOUNT"]
+        cred = credentials.Certificate(dict(firebase_info))
         firebase_admin.initialize_app(cred)
     except Exception as e:
-        st.error(f"Firebase 설정 확인 필요: {e}")
+        st.error(f"Firebase 설정 에러: {e}")
 
 db = firestore.client()
 api_key = st.secrets.get("OPENAI_API_KEY")
@@ -50,36 +56,23 @@ st.markdown("""
     html, body, [data-testid="stAppViewContainer"] { background-color: #FCF9F6; font-family: 'Noto Sans KR', sans-serif; }
     label p { font-size: 24px !important; font-weight: bold !important; color: #5D4037 !important; }
     h1 { color: #8D6E63 !important; text-align: center; margin-bottom: 30px; font-weight: 800; }
-    .stTextInput input, .stTextArea textarea { 
-        font-size: 22px !important; border-radius: 15px !important; 
-        border: 2px solid #E0D4CC !important; padding: 20px !important; background-color: #FFFFFF !important; 
-    }
-    .stButton>button { 
-        width: 100%; border-radius: 20px; height: 4.5em; background-color: #8D6E63 !important; 
-        color: white !important; font-weight: bold; font-size: 22px !important; transition: 0.3s; 
-    }
-    .stButton>button:hover { background-color: #6D4C41 !important; transform: translateY(-2px); }
-    .result-card { 
-        background-color: #FFFFFF; padding: 30px; border-radius: 25px; 
-        border-left: 10px solid #D7CCC8; box-shadow: 0 10px 20px rgba(0,0,0,0.05); margin-bottom: 20px; 
-    }
-    .stTabs [data-baseweb="tab-list"] button { font-size: 26px !important; font-weight: bold !important; padding: 15px 30px; }
+    .stTextInput input, .stTextArea textarea { font-size: 22px !important; border-radius: 15px !important; border: 2px solid #E0D4CC !important; padding: 20px !important; }
+    .stButton>button { width: 100%; border-radius: 20px; height: 4.5em; background-color: #8D6E63 !important; color: white !important; font-weight: bold; font-size: 22px !important; }
+    .result-card { background-color: #FFFFFF; padding: 30px; border-radius: 25px; border-left: 10px solid #D7CCC8; box-shadow: 0 10px 20px rgba(0,0,0,0.05); margin-bottom: 20px; }
+    .stTabs [data-baseweb="tab-list"] button { font-size: 26px !important; font-weight: bold !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# 💾 Firebase 데이터 함수
-def save_data(uid, data):
-    db.collection("users").document(uid).set(data)
-
+# 💾 Firebase 데이터 연동 함수
+def save_data(uid, data): db.collection("users").document(uid).set(data)
 def load_data(uid):
     doc = db.collection("users").document(uid).get()
     return doc.to_dict() if doc.exists else None
 
-# 데이터 로드
+# 세션 데이터 초기 로드
 if 'init_done' not in st.session_state:
     saved = load_data(user_id)
-    if saved:
-        st.session_state.update(saved)
+    if saved: st.session_state.update(saved)
     else:
         st.session_state.update({
             'texts': {"인스타": "", "아이디어스": "", "스토어": ""},
@@ -87,14 +80,14 @@ if 'init_done' not in st.session_state:
         })
     st.session_state.init_done = True
 
-# 🤖 AI 로직
+# 🤖 [AI 엔진: 따님 설계 로직 완벽 반영]
 def analyze_image(img_file):
     client = openai.OpenAI(api_key=api_key)
     base64_image = base64.b64encode(img_file.getvalue()).decode('utf-8')
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[{"role": "user", "content": [
-            {"type": "text", "text": "핸드메이드 작가 모그의 작품이야. 사진의 특징을 1인칭 작가 시점으로 다정하게 묘사해줘."},
+            {"type": "text", "text": "핸드메이드 작가 모그의 작품이야. 색감과 디테일을 1인칭 시점으로 다정하게 묘사해줘."},
             {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
         ]}]
     )
@@ -102,33 +95,36 @@ def analyze_image(img_file):
 
 def ask_mog_ai(platform, user_in="", feedback=""):
     client = openai.OpenAI(api_key=api_key)
-    base_style = "[절대 규칙: 1인칭 작가 시점] 당신은 작가 '모그(Mog)'입니다. 말투: ~이지요^^, ~해요 등 다정하게."
+    base_style = "[절대 규칙: 1인칭 작가 시점] 당신은 작가 '모그(Mog)'입니다. 말투: ~이지요^^, ~해요. 특수기호(*, **) 금지."
     
-    if platform == "인스타그램": system_p = f"{base_style} 감성 일기 형식."
-    elif platform == "아이디어스": system_p = f"{base_style} 💡상세설명, 🍀Add info., 🔉안내, 👍🏻작가보증 포맷 엄수."
-    elif platform == "스마트스토어": system_p = f"{base_style} 💐상품명, 🌸디자인, 👜기능성, 📏사이즈, 📦소재, 🧼관리, 📍추천 엄수."
-    else: system_p = f"{base_style} 다정한 선배 작가 고민 상담."
+    if platform == "인스타그램":
+        system_p = f"{base_style} [📸 인스타그램] 감성 문구로 시작해 제작 일기와 상세 정보를 연결."
+    elif platform == "아이디어스":
+        system_p = f"{base_style} [🎨 아이디어스] 💡상세설명, 🍀Add info., 🔉안내, 👍🏻작가보증 포맷 엄수. 에세이처럼 길게."
+    elif platform == "스마트스토어":
+        system_p = f"{base_style} [🛍️ 스토어] 💐상품명, 🌸디자인, 👜기능성, 📏사이즈, 📦소재, 🧼관리, 📍추천 엄수."
+    else:
+        system_p = f"{base_style} [💬 상담소] 다정한 선배 작가 고민 상담."
 
-    info = f"작품:{st.session_state.m_name}, 소재:{st.session_state.m_mat}, 정성:{st.session_state.m_det}"
-    if st.session_state.img_analysis: info += f"\n[사진 분석]: {st.session_state.img_analysis}"
+    info = f"작품:{st.session_state.m_name}, 소재:{st.session_state.m_mat}, 특징:{st.session_state.m_det}"
+    if st.session_state.img_analysis: info += f"\n[분석]: {st.session_state.img_analysis}"
     
     content = f"수정요청: {feedback}\n기존: {user_in}" if feedback else f"정보: {info} / {user_in}"
     res = client.chat.completions.create(model="gpt-4o", messages=[{"role":"system","content":system_p},{"role":"user","content":content}])
-    return res.choices[0].message.content.replace("*", "").strip()
+    return res.choices[0].message.content.replace("**", "").replace("*", "").strip()
 
 # --- 3. 메인 화면 ---
 st.sidebar.title("🌸 작가님 정보")
-st.sidebar.write(f"계정: {user_id}")
-if st.sidebar.button("로그아웃"):
-    auth.logout()
+st.sidebar.write(f"접속: {user_id}")
+if st.sidebar.button("로그아웃"): auth.logout()
 
 st.title("🌸 모그 작가님 AI 비서 🌸")
 
 with st.container():
     col1, col2 = st.columns([1, 1.5], gap="large")
     with col1:
-        st.header("📸 사진 분석")
-        up_img = st.file_uploader("작품 사진을 올려주세요^^", type=["jpg", "png", "jpeg"])
+        st.header("📸 작품 사진")
+        up_img = st.file_uploader("작품 사진 올려주세요^^", type=["jpg", "png", "jpeg"])
         if up_img:
             st.image(up_img, use_container_width=True)
             if st.button("🔍 분석 시작"):
@@ -136,25 +132,18 @@ with st.container():
                 st.rerun()
     with col2:
         st.header("📝 작품 정보")
-        c1, c2 = st.columns(2)
-        st.session_state.m_name = c1.text_input("📦 이름", value=st.session_state.m_name)
-        st.session_state.m_mat = c2.text_input("🧵 소재", value=st.session_state.m_mat)
-        c3, c4 = st.columns(2)
-        st.session_state.m_per = c3.text_input("⏳ 기간", value=st.session_state.m_per)
-        st.session_state.m_size = c4.text_input("📏 사이즈", value=st.session_state.m_size)
-        st.session_state.m_det = st.text_area("✨ 포인트", value=st.session_state.m_det, height=120)
-        
-        if st.button("💾 정보 저장하기"):
+        st.session_state.m_name = st.text_input("📦 작품 이름", value=st.session_state.m_name)
+        st.session_state.m_mat = st.text_input("🧵 소재", value=st.session_state.m_mat)
+        st.session_state.m_det = st.text_area("✨ 정성 포인트", value=st.session_state.m_det, height=120)
+        if st.button("💾 이 정보들 저장하기"):
             save_data(user_id, {
                 'm_name': st.session_state.m_name, 'm_mat': st.session_state.m_mat,
-                'm_per': st.session_state.m_per, 'm_size': st.session_state.m_size,
                 'm_det': st.session_state.m_det, 'texts': st.session_state.texts,
                 'chat_log': st.session_state.chat_log, 'img_analysis': st.session_state.img_analysis
             })
-            st.success("저장 완료! 🌸")
+            st.success("작가님 기록 저장 완료! 🌸")
 
 st.divider()
-
 tabs = st.tabs(["✍️ 판매글 쓰기", "💬 고민 상담소"])
 
 with tabs[0]:
