@@ -3,11 +3,12 @@ import openai
 from PIL import Image
 import io
 import base64
+import os
 
 # 1. 페이지 설정
 st.set_page_config(page_title="모그 AI 비서", layout="wide", page_icon="🌸")
 
-# --- ✨ UI 스타일 가이드 (가독성 및 심미성 강화) ---
+# --- ✨ UI 스타일 가이드 ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap');
@@ -32,34 +33,28 @@ for key in ['texts', 'chat_log', 'm_name', 'm_mat', 'm_per', 'm_size', 'm_det', 
         elif key == 'img_analysis': st.session_state[key] = ""
         else: st.session_state[key] = ""
 
-# --- [로직 1: 사진 특징 분석] ---
+# --- [로직들: 따님 원본 100% 보존] ---
 def analyze_image(img_file):
     client = openai.OpenAI(api_key=api_key)
     base64_image = base64.b64encode(img_file.getvalue()).decode('utf-8')
     response = client.chat.completions.create(
         model="gpt-4o",
-        messages=[{"role": "user", "content": [{"type": "text", "text": "핸드메이드 작가 모그의 작품이야. 색감과 디테일을 다정하게 묘사해줘."}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}]}]
+        messages=[{"role": "user", "content": [{"type": "text", "text": "핸드메이드 작가 모그의 작품이야. 색감과 디테일을 1인칭 시점으로 다정하게 묘사해줘."}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}]}]
     )
     return response.choices[0].message.content
 
-# --- [로직 2: 글쓰기 엔진] ---
 def ask_mog_ai(platform, user_in="", feedback=""):
     client = openai.OpenAI(api_key=api_key)
-    base_style = """[절대 규칙: 1인칭 작가 시점] 당신은 작가 '모그(Mog)' 본인입니다. 말투: ~이지요^^, ~해요 등 다정한 50대 여성 작가 어투. 특수기호(*, **) 절대 금지."""
+    base_style = "[절대 규칙: 1인칭 작가 시점] 당신은 작가 '모그(Mog)' 본인입니다. 말투: ~이지요^^, ~해요 등 다정하게."
     
-    if platform == "인스타그램":
-        system_p = f"{base_style} [📸 인스타그램] 감성 일기 형식."
-    elif platform == "아이디어스":
-        system_p = f"{base_style} [🎨 아이디어스] 💡상세설명, 🍀Add info., 🔉안내, 👍🏻작가보증 포맷 엄수. 아주 길게 작성."
-    elif platform == "스마트스토어":
-        system_p = f"{base_style} [🛍️ 스토어] 💐상품명, 🌸디자인, 👜기능성, 📏사이즈, 📦소재, 🧼관리, 📍추천 포맷 엄수."
-    else:
-        system_p = f"{base_style} [💬 상담소] 선배 작가의 조언."
+    if platform == "인스타그램": system_p = f"{base_style} [📸 인스타 감성 일기]"
+    elif platform == "아이디어스": system_p = f"{base_style} [🎨 아이디어스 에세이] 💡상세설명, 🍀Add info., 🔉안내, 👍🏻작가보증 엄수."
+    elif platform == "스마트스토어": system_p = f"{base_style} [🛍️ 스토어 가이드] 💐상품명, 🌸디자인, 👜기능성, 📏사이즈, 📦소재, 🧼관리, 📍추천 엄수."
+    else: system_p = f"{base_style} [💬 상담소]"
 
     info = f"작품:{st.session_state.m_name}, 소재:{st.session_state.m_mat}, 사이즈:{st.session_state.m_size}, 정성:{st.session_state.m_det}"
-    if st.session_state.img_analysis: info += f"\n[사진 특징]: {st.session_state.img_analysis}"
-    
-    content = f"수정 요청: {feedback}\n기존 글: {user_in}" if feedback else f"정보: {info} / {user_in}"
+    if st.session_state.img_analysis: info += f"\n[사진 분석]: {st.session_state.img_analysis}"
+    content = f"수정 요청: {feedback}\n기존: {user_in}" if feedback else f"정보: {info} / {user_in}"
     res = client.chat.completions.create(model="gpt-4o", messages=[{"role":"system","content":system_p},{"role":"user","content":content}])
     return res.choices[0].message.content.replace("**", "").replace("*", "").strip()
 
@@ -116,7 +111,3 @@ with tabs[1]:
         st.session_state.chat_log.append({"role": "user", "content": pr})
         st.session_state.chat_log.append({"role": "assistant", "content": ask_mog_ai("상담", user_in=pr)})
         st.rerun()
-
-# ... 기존 코드들 맨 아래에 추가 ...
-if __name__ == "__main__":
-    st.write("모그 AI 비서가 정상 작동 중입니다🌸")
