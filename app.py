@@ -7,10 +7,11 @@ from streamlit_google_auth import Authenticate
 import json
 import os
 
-# 1. 페이지 설정
+# 1. 페이지 설정 (최상단 고정)
 st.set_page_config(page_title="모그 AI 비서", layout="wide", page_icon="🌸")
 
-# --- 🔐 구글 로그인 설정 (임시 파일 생성 방식) ---
+# --- 🔐 구글 로그인 설정 (TypeError 완벽 방어) ---
+# Secrets 정보를 기반으로 라이브러리가 요구하는 JSON 파일을 생성합니다.
 client_secrets = {
     "web": {
         "client_id": st.secrets["GOOGLE_CLIENT_ID"],
@@ -22,10 +23,10 @@ client_secrets = {
     }
 }
 
-# 임시 인증 파일 생성
 with open("client_secrets.json", "w") as f:
     json.dump(client_secrets, f)
 
+# 🚨 에러 원인인 Authenticate 부분을 인자 이름(Keyword)을 명시하여 수정했습니다.
 try:
     auth = Authenticate(
         client_secrets_file="client_secrets.json",
@@ -33,9 +34,17 @@ try:
         cookie_key=st.secrets["AUTH_SECRET_KEY"],
         cookie_expiry_days=30
     )
-except:
-    auth = Authenticate("client_secrets.json", "mom_ai_login_cookie", st.secrets["AUTH_SECRET_KEY"])
+except TypeError:
+    # 혹시라도 인자 이름이 다른 구버전일 경우를 대비한 2차 방어
+    auth = Authenticate(
+        secret_key=st.secrets["AUTH_SECRET_KEY"],
+        google_client_id=st.secrets["GOOGLE_CLIENT_ID"],
+        google_client_secret=st.secrets["GOOGLE_CLIENT_SECRET"],
+        redirect_uri=st.secrets["REDIRECT_URI"],
+        cookie_name="mom_ai_login_cookie"
+    )
 
+# 🔑 로그인 체크
 auth.check_authentification()
 
 if not st.session_state.get('connected'):
@@ -49,15 +58,25 @@ if not st.session_state.get('connected'):
 # --- 🔑 로그인 성공 후 본문 ---
 user_id = st.session_state['user_info'].get('email', 'mom_mog_01')
 
+# Firebase 초기화
 if not firebase_admin._apps:
-    cred = credentials.Certificate(dict(st.secrets["FIREBASE_SERVICE_ACCOUNT"]))
-    firebase_admin.initialize_app(cred)
+    try:
+        # Streamlit Secrets에 저장된 Firebase 딕셔너리를 그대로 사용합니다.
+        cred = credentials.Certificate(dict(st.secrets["FIREBASE_SERVICE_ACCOUNT"]))
+        firebase_admin.initialize_app(cred)
+    except Exception as e:
+        st.error(f"Firebase 초기화 에러: {e}")
 
 db = firestore.client()
 api_key = st.secrets["OPENAI_API_KEY"]
 
-# --- ✨ UI 및 로직 (따님 원본 보존) ---
-st.markdown("<style>h1 { color: #8D6E63; text-align: center; } .result-card { background: white; padding: 20px; border-radius: 15px; border-left: 10px solid #D7CCC8; }</style>", unsafe_allow_html=True)
+# --- ✨ 따님 설계 UI/AI 로직 ---
+st.markdown("""
+    <style>
+    h1 { color: #8D6E63 !important; text-align: center; margin-bottom: 30px; font-weight: 800; }
+    .result-card { background-color: #FFFFFF; padding: 30px; border-radius: 25px; border-left: 10px solid #D7CCC8; box-shadow: 0 10px 20px rgba(0,0,0,0.05); margin-bottom: 20px; }
+    </style>
+    """, unsafe_allow_html=True)
 
 def ask_mog_ai(platform, user_in="", feedback=""):
     client = openai.OpenAI(api_key=api_key)
@@ -78,15 +97,21 @@ def ask_mog_ai(platform, user_in="", feedback=""):
     return res.choices[0].message.content.replace("**", "").replace("*", "").strip()
 
 # --- 화면 구성 ---
+st.sidebar.title("🌸 작가님 정보")
+st.sidebar.write(f"접속: {user_id}")
+if st.sidebar.button("로그아웃"):
+    auth.logout()
+
 st.title("🌸 모그 작가님 AI 비서 🌸")
+
 if 'texts' not in st.session_state:
     st.session_state.update({'texts': {"인스타": "", "아이디어스": "", "스토어": ""}, 'chat_log': [], 'm_name': '', 'm_mat': '', 'm_det': ''})
 
 with st.container():
-    st.header("📝 작품 정보")
+    st.header("📝 작품 정보 입력")
     st.session_state.m_name = st.text_input("📦 이름", value=st.session_state.m_name)
     st.session_state.m_mat = st.text_input("🧵 소재", value=st.session_state.m_mat)
-    st.session_state.m_det = st.text_area("✨ 포인트", value=st.session_state.m_det)
+    st.session_state.m_det = st.text_area("✨ 포인트", value=st.session_state.m_det, height=120)
 
 st.divider()
 tabs = st.tabs(["✍️ 판매글 쓰기", "💬 고민 상담소"])
@@ -99,6 +124,7 @@ with tabs[0]:
 
     for p_name, key in [("인스타그램", "인스타"), ("아이디어스", "아이디어스"), ("스마트스토어", "스토어")]:
         if st.session_state.texts[key]:
+            st.markdown(f"---")
             st.markdown(f"### ✨ 완성된 {p_name} 글")
             st.markdown(f'<div class="result-card">{st.session_state.texts[key].replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
 
