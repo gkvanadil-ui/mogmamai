@@ -20,7 +20,7 @@ try:
         redirect_uri=st.secrets["REDIRECT_URI"],
         cookie_name="mom_ai_login_cookie"
     )
-except Exception as e:
+except Exception:
     # 혹시 환경에 따라 구버전이 설치되어 있을 경우를 대비한 2중 방어
     try:
         auth = Authenticate(
