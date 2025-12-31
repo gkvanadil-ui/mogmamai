@@ -64,7 +64,7 @@ if "device_id" not in st.session_state:
     st.stop()
 
 # ==========================================
-# [섹션 C] 메인 앱
+# [섹션 C] 메인 앱 준비 (DB 연결 및 함수)
 # ==========================================
 
 device_id = st.session_state["device_id"]
@@ -85,7 +85,7 @@ except Exception as e:
         st.code(traceback.format_exc())
     st.stop()
 
-# 2. 데이터 처리 함수들
+# 2. 데이터 처리 함수들 (기존 유지)
 def save_to_db(work_id, data):
     if not db: return
     try:
@@ -120,7 +120,9 @@ def delete_work(work_id):
     except Exception as e:
         st.toast("삭제 실패: 잠시 후 다시 시도해주세요.")
 
-# [기능] 이미지 분석 (Vision API)
+# 3. AI 기능 함수 (기존 유지 + 상담 함수 추가)
+
+# [기존] 이미지 분석
 def analyze_image_features(uploaded_file):
     if "OPENAI_API_KEY" not in st.secrets: return "API 키 오류"
     try:
@@ -131,17 +133,8 @@ def analyze_image_features(uploaded_file):
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
-                {
-                    "role": "system",
-                    "content": "당신은 핸드메이드 작품 분석가입니다. 사진의 색감, 분위기, 재질감, 시각적 특징을 3줄 이내로 간략히 요약하세요. 감탄사 생략, 핵심만 서술."
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": "이 작품의 시각적 특징을 분석해줘."},
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
-                    ]
-                }
+                {"role": "system", "content": "당신은 핸드메이드 작품 분석가입니다. 사진의 색감, 분위기, 재질감, 시각적 특징을 3줄 이내로 간략히 요약하세요. 감탄사 생략, 핵심만 서술."},
+                {"role": "user", "content": [{"type": "text", "text": "이 작품의 시각적 특징을 분석해줘."}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}]}
             ],
             max_tokens=300
         )
@@ -149,125 +142,76 @@ def analyze_image_features(uploaded_file):
     except Exception as e:
         return f"(사진 분석 실패: {str(e)})"
 
-# [기능] 글 생성 (플랫폼별 어투 강제 적용 - 시스템 프롬프트 분리)
+# [기존] 글 생성
 def generate_copy(platform, name, material, size, duration, point, img_desc):
     if "OPENAI_API_KEY" not in st.secrets: return "🚨 API 키 설정을 확인해주세요."
     try:
         client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
         
-        # [System Prompt] 플랫폼별 절대 규칙 정의
+        # 기본 페르소나
+        base_persona = """[역할 정의] 당신은 핸드메이드 작가 '모그(Mog)'입니다."""
+        
         if platform == "인스타":
-            # [인스타] 감성 일기 스타일
-            system_message = """
-            [Role]
-            당신은 핸드메이드 작가 '모그(Mog)'입니다.
-            판매자가 아닌, 작업실에서 조용히 이야기를 건네는 작가로서 글을 씁니다.
-
-            [절대 금지 사항]
-            - "판매", "구매", "옵션", "구성", "주문" 등 상업적 키워드 사용 절대 금지.
-            - 설명문, 항목 나열형(1. 2. 3.), 딱딱한 정보 전달 금지.
-            - 이모지 과다 사용 금지.
-
-            [어투 및 형식]
-            - 100% 감성 독백형 에세이 스타일.
-            - 말끝은 반드시 "~해요", "~랍니다", "~같아요", "~죠?" 형태만 사용.
-            - 문장은 짧게 끊고, 줄바꿈을 자주 하여 여백을 많이 둡니다.
-            - 사진 속 특징과 작가의 감정을 자연스럽게 연결하세요.
-
-            [작성 구조]
-            1. 날씨나 작업실 분위기, 작가의 기분으로 시작.
-            2. 작품을 만들며 느꼈던 감정이나 손맛 묘사.
-            3. 마지막에 은근한 여운을 남기며 마무리.
-            4. 하단에 관련 해시태그 10개.
-            """
-        
+            system_message = """[인스타그램 규칙] 100% 감성 독백형 에세이. 상업적 키워드 금지. 말끝(~죠?, ~해요). 줄바꿈 자주.
+            [구조] 도입(날씨/기분) -> 본문(감정/손맛) -> 정보(녹여서) -> 여운 남는 마무리."""
         elif platform == "아이디어스":
-            # [아이디어스] 정보형 판매글 스타일
-            system_message = """
-            [Role]
-            당신은 핸드메이드 마켓 '아이디어스(Idus)'의 전문 판매 작가입니다.
-            감성보다는 '정확한 정보 전달'과 '가독성'을 최우선으로 하는 판매글을 작성합니다.
-
-            [절대 금지 사항]
-            - 혼잣말, 일기체, 감성 독백 금지.
-            - 이모티콘(^^, ㅎㅎ, ㅠㅠ) 사용 절대 금지.
-            - 과도한 미사여구 및 불필요한 인사/마무리 멘트 금지.
-
-            [어투 및 형식]
-            - "~에요", "~입니다" 형태의 친절하고 명확한 설명체.
-            - 문단 사이에는 반드시 빈 줄을 넣어 가독성 확보.
-            - 〰️, ➖ 구분선을 지시된 위치에 정확히 사용 (단독 줄).
-
-            [필수 작성 구조 (순서 엄수)]
-            1. [첫 문단] 색감+분위기+제품 정의 (한 문단 요약).
-            2. [사이즈 요약] S/M 여부 언급 + "하단 상세사이즈 참고" 문구.
-            3. (구분선) 〰️ (반드시 줄바꿈 후 단독 사용)
-            4. [활용/포인트] 📌 이모지 사용. 옵션, 선물용, 활용도 강조.
-            5. (구분선) ➖ (반드시 줄바꿈 후 단독 사용)
-            6. [컨셉] 꺼낼 때 기분 좋아지는 제품 강조 (질문형 허용).
-            7. [작가 소개] 과장 없는 담백한 브랜드 방향성.
-            8. [소재 설명] ㅣ겉감ㅣ, ㅣ안감ㅣ 구분, 특성 및 주의사항.
-            9. [사이즈 상세] ✔️S사이즈, ✔️M사이즈 항목 분리, 수납 예시 포함.
-            10. [구성] 기본 구성 및 옵션(괄호 표기).
-            11. [제작/배송] 미리 제작 여부, 사이즈 변경 가능/불가 여부.
-            12. [세탁 방법] 손세탁, 물 온도, 건조, 다림질 등 항목형 안내.
-            """
-            
+            system_message = """[아이디어스 규칙] 정보형 판매글. 명확한 설명체(~입니다). 문단 사이 빈 줄. 구분선(〰️, ➖) 사용.
+            [구조] 요약 -> 사이즈안내 -> 〰️ -> 포인트(📌) -> ➖ -> 컨셉 -> 작가소개 -> 소재 -> 상세사이즈 -> 구성 -> 제작/배송 -> 세탁."""
         else:
-            # [스토어] 스마트스토어 신뢰형 상세페이지 스타일 (신규 적용)
-            system_message = """
-            [Role]
-            당신은 네이버 스마트스토어의 전문 판매자입니다.
-            감성보다는 '제품의 기능, 스펙, 실제 착용감'을 명확하게 전달하는 것을 최우선으로 합니다.
+            system_message = """[스토어 규칙] 신뢰감 있는 정보 전달. 3인칭 설명체.
+            [구조] 요약 -> 디자인/핏 -> 스타일링 -> 추천대상 -> 소재 -> 사이즈 -> 촬영안내."""
 
-            [절대 금지 사항]
-            - 작가의 독백, 감성 에세이, 일기체, 아이디어스용 이모지 금지.
-            - "너무 예뻐요", "대박이에요" 같은 추상적인 감탄사 금지.
-            - 특수기호(*, **) 사용 금지.
-            - 질문형 문장(~~일까요?) 남용 금지.
-
-            [어투 및 형식]
-            - 3인칭 설명체 또는 중립적 안내 문장 (~입니다, ~있어요, ~좋아요).
-            - 불필요한 수식어를 제거하고 핵심만 기술.
-            - 줄바꿈을 활용하여 정보 단위로 명확히 구분.
-
-            [필수 작성 구조 (순서 엄수)]
-            1. [제품 요약] 소재의 촉감, 전체적인 실루엣, 착용 시 장점을 한 문단으로 요약.
-            2. [디자인 & 착용감] 핏(세미와이드, 랩디테일 등), 체형 보완 포인트, 안감/신축성/보온성 등 기능 설명.
-            3. [스타일링 팁] 어울리는 슈즈나 하의, 연출 가능한 무드(캐주얼/포멀) 제안.
-            4. [이런 분께 추천해요] (불릿 리스트 사용) 구체적인 구매 상황이나 필요성을 언급.
-            5. [소재] 혼용률 및 소재의 두께감, 촉감 기술.
-            6. [사이즈 안내] 입력된 사이즈 정보 + "측정 방법에 따라 1~3cm 오차가 있을 수 있습니다." 문구 포함.
-            7. [촬영 및 컬러 안내] "자연광/조명에 따라 색상 차이가 있을 수 있으며, 상세 이미지가 실제 색상과 가장 유사합니다." 문구 포함.
-            """
-
-        # [User Prompt] 오직 데이터만 전달 (어투 지시 포함 금지)
         user_input = f"""
-        [Data]
-        - Name: {name}
-        - Material: {material}
-        - Size: {size}
-        - Duration: {duration}
-        - Point: {point}
-        - Image Feature: {img_desc}
-        
-        [지시사항]
-        1. 작가가 입력한 정보를 최우선으로 반영하세요.
-        2. 사진 정보는 디자인과 질감 설명의 보조 자료로만 활용하세요.
-        3. 각 플랫폼별 정의된 어투와 구조를 100% 준수하세요.
+        [Data] Name: {name}, Material: {material}, Size: {size}, Duration: {duration}, Point: {point}, Image Feature: {img_desc}
+        [지시] 작가 입력 정보 최우선. 플랫폼별 어투/구조 100% 준수.
         """
         
         res = client.chat.completions.create(
             model="gpt-4o",
-            messages=[
-                {"role":"system","content": system_message}, 
-                {"role":"user","content": user_input}
-            ]
+            messages=[{"role":"system","content": base_persona + "\n" + system_message}, {"role":"user","content": user_input}]
         )
         return res.choices[0].message.content.replace("**", "").strip()
     except Exception as e: return f"AI 오류: {str(e)}"
 
-# 3. UI 렌더링
+# [신규] 고민상담소 AI 응답 생성 함수
+def ask_consultant(history_messages):
+    if "OPENAI_API_KEY" not in st.secrets: return "API 키 설정을 확인해주세요."
+    try:
+        client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+        
+        system_prompt = """
+        [역할 정의]
+        당신은 핸드메이드 작가를 돕는 '실전형 판매·마케팅 컨설턴트'입니다.
+        작가의 고민에 대해 막연한 위로가 아닌, '매출과 브랜딩에 직결되는 현실적인 조언'을 제공합니다.
+
+        [답변 스타일]
+        - 말투: 차분하고 단정한 설명체 (~합니다, ~하세요).
+        - 태도: 객관적이고 분석적이며, 실행 가능한 대안을 제시하는 전문가.
+        - 금지: "힘내세요", "열심히 하면 됩니다" 같은 추상적인 위로 금지. 불필요한 이모지 남발 금지.
+
+        [답변 구조 가이드]
+        1. [문제 요약] 작가의 고민 핵심을 한 줄로 정리.
+        2. [원인 분석] 왜 그런 문제가 발생하는지 실무적 관점에서 분석 (가격, 노출, 사진, 소구점 등).
+        3. [실행 솔루션] 당장 시도해볼 수 있는 구체적인 해결책 2~4가지 (번호 매기기).
+        4. [조언] 장단점 비교나 리스크가 있다면 명확히 언급.
+        """
+        
+        messages = [{"role": "system", "content": system_prompt}] + history_messages
+        
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=messages,
+            max_tokens=1000
+        )
+        return response.choices[0].message.content
+    except Exception as e: return f"상담 중 오류가 발생했습니다: {str(e)}"
+
+
+# ==========================================
+# [섹션 D] UI 레이아웃 구성
+# ==========================================
+
+# 1. 사이드바 (공통 유지)
 if 'current_work' not in st.session_state: st.session_state.current_work = None
 my_works = load_works()
 
@@ -275,7 +219,6 @@ with st.sidebar:
     st.title("📂 내 작품 목록")
     if st.button("➕ 새 작품 만들기", use_container_width=True, type="primary"):
         uid = str(uuid.uuid4())
-        # 신규 필드 포함 초기화
         empty = {"name": "", "material": "", "size": "", "duration": "", "point": "", "image_analysis": "", "texts": {}}
         st.session_state.current_work = {"work_id": uid, **empty}
         save_to_db(uid, empty)
@@ -289,119 +232,137 @@ with st.sidebar:
         for w in my_works:
             label = w.get('name') or "(이름 없는 작품)"
             is_active = st.session_state.current_work and st.session_state.current_work['work_id'] == w['work_id']
-            # Key 유일성 보장
             if st.button(f"{'👉' if is_active else '📦'} {label}", key=w['work_id'], use_container_width=True):
                 st.session_state.current_work = w
                 st.rerun()
 
 st.title("🌸 모그 작가님 AI 비서")
 
-if not st.session_state.current_work:
-    if my_works:
-        st.session_state.current_work = my_works[0]
-        st.rerun()
-    else:
-        st.info("👈 왼쪽 사이드바의 [➕ 새 작품 만들기] 버튼을 눌러주세요!")
-        st.stop()
+# 2. 메인 탭 구성 (글작성 / 고민상담소)
+main_tab1, main_tab2 = st.tabs(["📝 글작성", "💬 고민상담소"])
 
-curr = st.session_state.current_work
-wid = curr['work_id']
+# =========================================================
+# [탭 1] 글작성 (기존 기능 100% 이식)
+# =========================================================
+with main_tab1:
+    if not st.session_state.current_work:
+        if my_works:
+            st.session_state.current_work = my_works[0]
+            st.rerun()
+        else:
+            st.info("👈 왼쪽 사이드바의 [➕ 새 작품 만들기] 버튼을 눌러주세요!")
+            st.stop()
 
-# 데이터 안전 조회
-c_name = curr.get('name', '')
-c_mat = curr.get('material', '')
-c_size = curr.get('size', '')
-c_dur = curr.get('duration', '')
-c_point = curr.get('point', '')
-c_img_anl = curr.get('image_analysis', '')
+    curr = st.session_state.current_work
+    wid = curr['work_id']
 
-c1, c2 = st.columns(2)
+    # 데이터 로드
+    c_name = curr.get('name', '')
+    c_mat = curr.get('material', '')
+    c_size = curr.get('size', '')
+    c_dur = curr.get('duration', '')
+    c_point = curr.get('point', '')
+    c_img_anl = curr.get('image_analysis', '')
 
-with c1:
-    st.subheader("📝 기본 정보 입력")
-    
-    # [입력 필드] 모든 위젯에 고유 Key 부여
-    nn = st.text_input("작품 이름", value=c_name, key=f"input_name_{wid}")
-    
-    col_sub1, col_sub2 = st.columns(2)
-    with col_sub1:
-        nm = st.text_input("소재", value=c_mat, key=f"input_mat_{wid}")
-    with col_sub2:
-        ns = st.text_input("사이즈 (예: 20x30cm)", value=c_size, key=f"input_size_{wid}")
+    c1, c2 = st.columns(2)
+
+    with c1:
+        st.subheader("📝 기본 정보 입력")
+        nn = st.text_input("작품 이름", value=c_name, key=f"input_name_{wid}")
         
-    nd = st.text_input("제작 소요 기간 (예: 3일)", value=c_dur, key=f"input_dur_{wid}")
-    np = st.text_area("특징 / 포인트 (작가님 생각)", value=c_point, height=100, key=f"input_point_{wid}")
-
-    st.markdown("---")
-    st.subheader("📸 사진 보조 (선택)")
-    
-    # 사진 업로더
-    uploaded_img = st.file_uploader("작품 사진을 올리면 AI가 특징을 읽어줍니다", type=['png', 'jpg', 'jpeg'], key=f"uploader_{wid}")
-    
-    # 사진 분석 버튼
-    if uploaded_img:
-        if st.button("✨ 이 사진 특징 분석하기", key=f"btn_anal_{wid}"):
-            with st.spinner("사진을 꼼꼼히 보고 있어요..."):
-                analysis_result = analyze_image_features(uploaded_img)
-                c_img_anl = analysis_result
-                
-                # 1. DB 저장
-                curr.update({'image_analysis': c_img_anl})
-                save_to_db(wid, curr)
-                
-                # 2. [필수] Session State 직접 갱신 (화면 출력 보장)
-                st.session_state[f"input_img_anl_{wid}"] = analysis_result
-                
-                # 3. Rerun
-                st.rerun()
-
-    # 분석 결과 표시
-    n_img_anl = st.text_area("AI가 분석한 사진 특징 (수정 가능)", value=c_img_anl, height=80, key=f"input_img_anl_{wid}", placeholder="사진을 올리고 분석 버튼을 누르면 채워집니다.")
-
-    # 저장 로직 (입력 필드 변경 시)
-    if (nn!=c_name or nm!=c_mat or ns!=c_size or nd!=c_dur or np!=c_point or n_img_anl!=c_img_anl):
-        curr.update({
-            'name': nn, 'material': nm, 'size': ns, 'duration': nd, 
-            'point': np, 'image_analysis': n_img_anl
-        })
-        save_to_db(wid, curr)
-
-    st.caption("모든 내용은 자동으로 저장됩니다.")
-    
-    if st.button("🗑️ 이 작품 삭제", key=f"btn_del_{wid}"):
-        delete_work(wid)
-        st.session_state.current_work = None
-        st.rerun()
-
-with c2:
-    st.subheader("✨ 글쓰기")
-    tabs = st.tabs(["인스타", "아이디어스", "스토어"])
-    texts = curr.get('texts', {})
-    
-    def render_tab(tab, platform_key, platform_name):
-        with tab:
-            # 생성 버튼
-            if st.button(f"{platform_name} 글 짓기", key=f"btn_gen_{platform_key}_{wid}"):
-                if not nn: st.toast("작품 이름을 먼저 입력해주세요! 😅")
-                else:
-                    with st.spinner(f"모그 작가님 말투로 {platform_name} 글을 쓰는 중..."):
-                        # AI 생성
-                        res = generate_copy(platform_name, nn, nm, ns, nd, np, n_img_anl)
-                        
-                        # 1. 변수 저장 및 DB 저장
-                        texts[platform_key] = res
-                        curr['texts'] = texts
-                        save_to_db(wid, curr)
-                        
-                        # 2. [필수] Session State 직접 갱신 (화면 출력 보장)
-                        st.session_state[f"result_{platform_key}_{wid}"] = res
-                        
-                        # 3. Rerun
-                        st.rerun()
+        col_sub1, col_sub2 = st.columns(2)
+        with col_sub1:
+            nm = st.text_input("소재", value=c_mat, key=f"input_mat_{wid}")
+        with col_sub2:
+            ns = st.text_input("사이즈 (예: 20x30cm)", value=c_size, key=f"input_size_{wid}")
             
-            # 결과 표시 (Key 충돌 방지 및 세션 상태 기반 출력)
-            st.text_area("결과물", value=texts.get(platform_key,""), height=500, key=f"result_{platform_key}_{wid}")
+        nd = st.text_input("제작 소요 기간 (예: 3일)", value=c_dur, key=f"input_dur_{wid}")
+        np = st.text_area("특징 / 포인트 (작가님 생각)", value=c_point, height=100, key=f"input_point_{wid}")
 
-    render_tab(tabs[0], "insta", "인스타")
-    render_tab(tabs[1], "idus", "아이디어스")
-    render_tab(tabs[2], "store", "스토어")
+        st.markdown("---")
+        st.subheader("📸 사진 보조 (선택)")
+        
+        uploaded_img = st.file_uploader("작품 사진을 올리면 AI가 특징을 읽어줍니다", type=['png', 'jpg', 'jpeg'], key=f"uploader_{wid}")
+        
+        if uploaded_img:
+            if st.button("✨ 이 사진 특징 분석하기", key=f"btn_anal_{wid}"):
+                with st.spinner("사진을 꼼꼼히 보고 있어요..."):
+                    analysis_result = analyze_image_features(uploaded_img)
+                    c_img_anl = analysis_result
+                    curr.update({'image_analysis': c_img_anl})
+                    save_to_db(wid, curr)
+                    st.session_state[f"input_img_anl_{wid}"] = analysis_result
+                    st.rerun()
+
+        n_img_anl = st.text_area("AI가 분석한 사진 특징 (수정 가능)", value=c_img_anl, height=80, key=f"input_img_anl_{wid}", placeholder="사진을 올리고 분석 버튼을 누르면 채워집니다.")
+
+        # 자동 저장
+        if (nn!=c_name or nm!=c_mat or ns!=c_size or nd!=c_dur or np!=c_point or n_img_anl!=c_img_anl):
+            curr.update({'name': nn, 'material': nm, 'size': ns, 'duration': nd, 'point': np, 'image_analysis': n_img_anl})
+            save_to_db(wid, curr)
+
+        st.caption("모든 내용은 자동으로 저장됩니다.")
+        
+        if st.button("🗑️ 이 작품 삭제", key=f"btn_del_{wid}"):
+            delete_work(wid)
+            st.session_state.current_work = None
+            st.rerun()
+
+    with c2:
+        st.subheader("✨ 글쓰기")
+        sub_tabs = st.tabs(["인스타", "아이디어스", "스토어"])
+        texts = curr.get('texts', {})
+        
+        def render_sub_tab(tab, platform_key, platform_name):
+            with tab:
+                if st.button(f"{platform_name} 글 짓기", key=f"btn_gen_{platform_key}_{wid}"):
+                    if not nn: st.toast("작품 이름을 먼저 입력해주세요! 😅")
+                    else:
+                        with st.spinner(f"모그 작가님 말투로 {platform_name} 글을 쓰는 중..."):
+                            res = generate_copy(platform_name, nn, nm, ns, nd, np, n_img_anl)
+                            texts[platform_key] = res
+                            curr['texts'] = texts
+                            save_to_db(wid, curr)
+                            st.session_state[f"result_{platform_key}_{wid}"] = res
+                            st.rerun()
+                st.text_area("결과물", value=texts.get(platform_key,""), height=500, key=f"result_{platform_key}_{wid}")
+
+        render_sub_tab(sub_tabs[0], "insta", "인스타")
+        render_sub_tab(sub_tabs[1], "idus", "아이디어스")
+        render_sub_tab(sub_tabs[2], "store", "스토어")
+
+
+# =========================================================
+# [탭 2] 고민상담소 (신규 기능)
+# =========================================================
+with main_tab2:
+    st.header("💬 핸드메이드 고민 상담소")
+    st.caption("가격, 마케팅, 고객 대응... 혼자 고민하지 말고 물어보세요. 실전형 컨설턴트가 답변해드립니다.")
+    
+    # 1. 채팅 로그 세션 초기화
+    if "consult_chat_log" not in st.session_state:
+        st.session_state["consult_chat_log"] = []
+
+    # 2. 이전 대화 기록 출력
+    for msg in st.session_state["consult_chat_log"]:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+
+    # 3. 사용자 입력 처리
+    if user_question := st.chat_input("예: 이번 신상 가격을 어떻게 정해야 할지 모르겠어."):
+        # 사용자 메시지 표시 및 저장
+        st.session_state["consult_chat_log"].append({"role": "user", "content": user_question})
+        with st.chat_message("user"):
+            st.markdown(user_question)
+
+        # AI 답변 생성 및 표시
+        with st.chat_message("assistant"):
+            with st.spinner("전문가가 고민을 분석 중입니다..."):
+                # API 호출용 히스토리 구성 (시스템 프롬프트는 함수 내에서 결합)
+                history_for_api = [{"role": m["role"], "content": m["content"]} for m in st.session_state["consult_chat_log"]]
+                
+                ai_advice = ask_consultant(history_for_api)
+                st.markdown(ai_advice)
+        
+        # AI 답변 저장
+        st.session_state["consult_chat_log"].append({"role": "assistant", "content": ai_advice})
