@@ -157,7 +157,7 @@ with st.sidebar:
         for w in my_works:
             label = w.get('name') or "(이름 없는 작품)"
             is_active = st.session_state.current_work and st.session_state.current_work['work_id'] == w['work_id']
-            # [수정] 사이드바 버튼 Key는 이미 work_id로 유니크함
+            # [핵심] 사이드바 버튼 Key는 work_id 자체를 사용하여 유일성 보장
             if st.button(f"{'👉' if is_active else '📦'} {label}", key=w['work_id'], use_container_width=True):
                 st.session_state.current_work = w
                 st.rerun()
@@ -173,18 +173,18 @@ if not st.session_state.current_work:
         st.stop()
 
 curr = st.session_state.current_work
-wid = curr['work_id'] # Key 생성용 ID 확보
+wid = curr['work_id'] # 현재 작업 중인 ID (Key 생성의 핵심 재료)
 
 c1, c2 = st.columns(2)
 
 with c1:
     st.subheader("📝 정보 입력")
-    # [핵심 수정] 모든 입력 위젯에 고유 Key 부여 (work_id 포함)
+    # [핵심 수정] 입력 필드 Key에 'wid'를 포함하여 작품 전환 시 충돌 방지
     nn = st.text_input("작품 이름", value=curr.get('name',''), key=f"input_name_{wid}")
     nm = st.text_input("소재", value=curr.get('material',''), key=f"input_mat_{wid}")
     np = st.text_area("특징 / 포인트", value=curr.get('point',''), height=150, key=f"input_point_{wid}")
     
-    # 변경 감지
+    # 변경 감지 및 자동 저장
     if nn!=curr.get('name') or nm!=curr.get('material') or np!=curr.get('point'):
         curr.update({'name':nn, 'material':nm, 'point':np})
         save_to_db(wid, curr)
@@ -192,7 +192,7 @@ with c1:
     st.caption("입력 내용은 자동으로 저장됩니다.")
     st.divider()
     
-    # [핵심 수정] 삭제 버튼에도 고유 Key 부여
+    # [핵심 수정] 삭제 버튼 Key에도 'wid' 포함
     if st.button("🗑️ 이 작품 삭제", key=f"btn_del_{wid}"):
         delete_work(wid)
         st.session_state.current_work = None
@@ -203,10 +203,10 @@ with c2:
     tabs = st.tabs(["인스타", "아이디어스", "스토어"])
     texts = curr.get('texts', {})
     
-    # 탭 렌더링 로직 (ID 충돌 방지 적용)
+    # 탭 내부 로직 (ID 충돌의 진원지 -> 완벽 방어)
     def render_tab(tab, platform_key, platform_name):
         with tab:
-            # [핵심 수정] 생성 버튼 Key: btn + 플랫폼 + work_id
+            # [핵심 수정 1] 생성 버튼 Key: btn + 플랫폼 + work_id
             if st.button(f"{platform_name} 글 짓기", key=f"btn_gen_{platform_key}_{wid}"):
                 if not nn: st.toast("작품 이름을 먼저 입력해주세요! 😅")
                 else:
@@ -217,9 +217,11 @@ with c2:
                         save_to_db(wid, curr)
                         st.rerun()
             
-            # [핵심 수정] 결과 텍스트 영역 Key: result + 플랫폼 + work_id
+            # [핵심 수정 2] 결과 텍스트 영역 Key: result + 플랫폼 + work_id
+            # 탭이 달라도, 작품이 달라도 절대 겹치지 않는 유일한 Key 생성
             st.text_area("결과물", value=texts.get(platform_key,""), height=400, key=f"result_{platform_key}_{wid}")
 
+    # 각 탭 렌더링 실행
     render_tab(tabs[0], "insta", "인스타")
     render_tab(tabs[1], "idus", "아이디어스")
     render_tab(tabs[2], "store", "스토어")
